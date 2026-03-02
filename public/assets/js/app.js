@@ -186,6 +186,7 @@ function applyRoleUI() {
     const ordersTab = document.getElementById('tab-orders');
     const flyersTab = document.getElementById('tab-flyers');
     const usersTab = document.getElementById('tab-users');
+    const tabsNav = document.getElementById('main-tabs-nav');
     const ordersSection = document.getElementById('admin-orders-section');
     const loginBtn = document.getElementById('auth-open-login');
     const logoutBtn = document.getElementById('auth-logout');
@@ -193,7 +194,9 @@ function applyRoleUI() {
 
     const canManageProducts = hasRole('admin', 'gestion');
     const isAdmin = hasRole('admin');
+    const isLoggedIn = !!storeState.currentUser;
 
+    if (tabsNav) tabsNav.classList.toggle('hidden', !isLoggedIn);
     if (adminTab) adminTab.classList.toggle('hidden', !canManageProducts);
     if (ordersTab) ordersTab.classList.toggle('hidden', !isAdmin);
     if (flyersTab) flyersTab.classList.toggle('hidden', !isAdmin);
@@ -201,7 +204,7 @@ function applyRoleUI() {
     if (ordersSection) ordersSection.classList.toggle('hidden', !isAdmin);
 
     if (badge) {
-        if (storeState.currentUser) {
+        if (isLoggedIn) {
             badge.classList.remove('hidden');
             badge.textContent = `${storeState.currentUser.name} (${storeState.currentRole})`;
         } else {
@@ -210,8 +213,8 @@ function applyRoleUI() {
         }
     }
 
-    if (loginBtn) loginBtn.classList.toggle('hidden', !!storeState.currentUser);
-    if (logoutBtn) logoutBtn.classList.toggle('hidden', !storeState.currentUser);
+    if (loginBtn) loginBtn.classList.toggle('hidden', isLoggedIn);
+    if (logoutBtn) logoutBtn.classList.toggle('hidden', !isLoggedIn);
 }
 
 async function initStore() {
@@ -360,12 +363,19 @@ async function sendOrder() {
 }
 
 function showTab(tabName) {
+    const isGuest = !storeState.currentUser;
+    if (isGuest && tabName !== 'store') {
+        openLoginModal();
+        tabName = 'store';
+    }
+
     if (tabName === 'admin' && !hasRole('admin', 'gestion')) return;
     if (tabName === 'orders' && !hasRole('admin')) return;
     if (tabName === 'flyers' && !hasRole('admin')) return;
     if (tabName === 'users' && !hasRole('admin')) return;
+
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-    document.querySelectorAll('nav button').forEach(el => el.classList.remove('active-tab'));
+    document.querySelectorAll('#main-tabs-nav button').forEach(el => el.classList.remove('active-tab'));
 
     const sectionMap = {
         store: 'section-store',
@@ -384,8 +394,11 @@ function showTab(tabName) {
 
     const sectionId = sectionMap[tabName] || 'section-store';
     const tabId = tabMap[tabName] || 'tab-store';
-    document.getElementById(sectionId).classList.remove('hidden');
-    document.getElementById(tabId).classList.add('active-tab');
+    const section = document.getElementById(sectionId);
+    const tab = document.getElementById(tabId);
+
+    if (section) section.classList.remove('hidden');
+    if (tab) tab.classList.add('active-tab');
 
     if (tabName === 'admin') renderAdminList();
     if (tabName === 'orders') renderOrdersKanban();

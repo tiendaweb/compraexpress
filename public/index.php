@@ -311,7 +311,7 @@ function appUrl(string $basePath, string $path): string
         </div>
     </div>
 
-    <nav class="bg-white border-t border-baby-blue-light">
+    <nav id="main-tabs-nav" class="bg-white border-t border-baby-blue-light">
         <div class="container mx-auto flex">
             <button onclick="showTab('store')" id="tab-store" class="flex-1 py-3 text-center text-gray-500 hover:text-baby-text active-tab transition items-center justify-center gap-2 flex">
                 <i class="fa-solid fa-store"></i> Tienda
