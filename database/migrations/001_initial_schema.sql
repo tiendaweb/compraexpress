@@ -101,6 +101,5 @@ ON DUPLICATE KEY UPDATE text = VALUES(text);
 INSERT INTO products (name, price, img) VALUES
     ('Pañales Etapa 2 x40', 29900, 'https://via.placeholder.com/300x300/b3e5fc/546e7a?text=Pa%C3%B1ales'),
     ('Toallitas Húmedas Aloe x80', 9500, 'https://via.placeholder.com/300x300/f8bbd0/546e7a?text=Toallitas'),
-    ('Crema Antipañalitis 110g', 3400, 'https://via.placeholder.com/300x300/c8e6c9/546e7a?text=%C3%93leo'),
-    ('Mamadera Anticólicos 260ml', 8900, 'https://via.placeholder.com/300x300/fffaf0/546e7a?text=Mamadera')
+    ('Crema Antipañalitis 110g', 3400, 'https://via.placeholder.com/300x300/c8e6c9/546e7a?text=%C3%93leo')
 ON DUPLICATE KEY UPDATE price = VALUES(price), img = VALUES(img);
