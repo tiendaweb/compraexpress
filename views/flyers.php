@@ -14,6 +14,7 @@
                 <button onclick="flyerAddElement('image')" class="bg-baby-green py-2 rounded-full font-bold">+ Imagen</button>
             </div>
             <button onclick="flyerApplyProductToSelected()" class="w-full bg-baby-pink text-white py-2 rounded-full font-bold">Autocompletar elemento</button>
+            <p class="text-xs text-gray-500">Tip: al crear un elemento de imagen, por defecto quedará listo para cargar archivo.</p>
             <button onclick="flyerSave()" class="w-full bg-baby-green py-3 rounded-full font-bold">Guardar flyer</button>
             <button onclick="flyerExportCurrent()" id="flyer-export-btn" class="w-full bg-baby-blue py-3 rounded-full font-bold">Exportar PNG</button>
             <button onclick="flyerNew()" class="w-full border py-2 rounded-full font-bold">Nuevo</button>

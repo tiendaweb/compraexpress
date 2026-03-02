@@ -111,6 +111,7 @@ async function logout() {
 
 function applyRoleUI() {
     const adminTab = document.getElementById('tab-admin');
+    const ordersTab = document.getElementById('tab-orders');
     const flyersTab = document.getElementById('tab-flyers');
     const ordersSection = document.getElementById('admin-orders-section');
     const loginBtn = document.getElementById('auth-open-login');
@@ -121,6 +122,7 @@ function applyRoleUI() {
     const isAdmin = hasRole('admin');
 
     if (adminTab) adminTab.classList.toggle('hidden', !canManageProducts);
+    if (ordersTab) ordersTab.classList.toggle('hidden', !isAdmin);
     if (flyersTab) flyersTab.classList.toggle('hidden', !isAdmin);
     if (ordersSection) ordersSection.classList.toggle('hidden', !isAdmin);
 
@@ -241,16 +243,31 @@ async function sendOrder() {
 
 function showTab(tabName) {
     if (tabName === 'admin' && !hasRole('admin', 'gestion')) return;
+    if (tabName === 'orders' && !hasRole('admin')) return;
     if (tabName === 'flyers' && !hasRole('admin')) return;
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.querySelectorAll('nav button').forEach(el => el.classList.remove('active-tab'));
 
-    const sectionId = tabName === 'store' ? 'section-store' : tabName === 'admin' ? 'section-admin' : 'section-flyers';
-    const tabId = tabName === 'store' ? 'tab-store' : tabName === 'admin' ? 'tab-admin' : 'tab-flyers';
+    const sectionMap = {
+        store: 'section-store',
+        admin: 'section-admin',
+        orders: 'section-orders',
+        flyers: 'section-flyers',
+    };
+    const tabMap = {
+        store: 'tab-store',
+        admin: 'tab-admin',
+        orders: 'tab-orders',
+        flyers: 'tab-flyers',
+    };
+
+    const sectionId = sectionMap[tabName] || 'section-store';
+    const tabId = tabMap[tabName] || 'tab-store';
     document.getElementById(sectionId).classList.remove('hidden');
     document.getElementById(tabId).classList.add('active-tab');
 
     if (tabName === 'admin') renderAdminList();
+    if (tabName === 'orders') renderOrdersKanban();
     if (tabName === 'flyers') renderFlyerBuilder();
 }
 
@@ -499,9 +516,87 @@ function flyerAddElement(type) {
     const id = 'e' + Date.now();
     flyerState.elements.push(type === 'text'
         ? { id, type: 'text', value: 'Texto', x: 20, y: 20, w: 180, h: 40 }
-        : { id, type: 'image', value: 'https://via.placeholder.com/200x200', x: 40, y: 80, w: 160, h: 160 });
+        : { id, type: 'image', value: '', x: 40, y: 80, w: 160, h: 160 });
     flyerState.selectedElementId = id;
     renderFlyerBuilder();
+}
+
+async function flyerUploadElementImage(id, file) {
+    if (!file) return;
+
+    try {
+        const path = await uploadAdminProductImage(file);
+        flyerUpdateElement(id, path);
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+function clampFlyerElement(el) {
+    const canvas = document.getElementById('flyer-canvas');
+    if (!canvas || !el) return;
+    const maxX = Math.max(0, canvas.clientWidth - el.w);
+    const maxY = Math.max(0, canvas.clientHeight - el.h);
+    el.x = Math.max(0, Math.min(el.x, maxX));
+    el.y = Math.max(0, Math.min(el.y, maxY));
+    el.w = Math.max(40, Math.min(el.w, canvas.clientWidth));
+    el.h = Math.max(40, Math.min(el.h, canvas.clientHeight));
+}
+
+function beginFlyerDrag(event, id) {
+    event.preventDefault();
+    const canvas = document.getElementById('flyer-canvas');
+    const element = flyerState.elements.find(item => item.id === id);
+    if (!canvas || !element) return;
+
+    flyerState.selectedElementId = id;
+    const rect = canvas.getBoundingClientRect();
+    const offsetX = event.clientX - rect.left - element.x;
+    const offsetY = event.clientY - rect.top - element.y;
+
+    const onMove = (moveEvent) => {
+        element.x = moveEvent.clientX - rect.left - offsetX;
+        element.y = moveEvent.clientY - rect.top - offsetY;
+        clampFlyerElement(element);
+        renderFlyerBuilder();
+    };
+
+    const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+}
+
+function beginFlyerResize(event, id) {
+    event.preventDefault();
+    event.stopPropagation();
+    const canvas = document.getElementById('flyer-canvas');
+    const element = flyerState.elements.find(item => item.id === id);
+    if (!canvas || !element) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const startW = element.w;
+    const startH = element.h;
+    const startX = event.clientX;
+    const startY = event.clientY;
+
+    const onMove = (moveEvent) => {
+        element.w = startW + (moveEvent.clientX - startX);
+        element.h = startH + (moveEvent.clientY - startY);
+        clampFlyerElement(element);
+        renderFlyerBuilder();
+    };
+
+    const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
 }
 
 function flyerApplyProductToSelected() {
@@ -532,14 +627,32 @@ function renderFlyerBuilder() {
         const node = document.createElement(el.type === 'image' ? 'img' : 'div');
         node.className = `absolute border p-1 bg-white/80 ${flyerState.selectedElementId === el.id ? 'border-baby-pink' : 'border-transparent'}`;
         node.style.left = `${el.x}px`; node.style.top = `${el.y}px`; node.style.width = `${el.w}px`; node.style.height = `${el.h}px`;
-        if (el.type === 'image') { node.src = el.value; node.style.objectFit = 'cover'; } else { node.textContent = el.value; }
+        if (el.type === 'image') {
+            node.src = el.value || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="320" height="320"%3E%3Crect width="100%25" height="100%25" fill="%23f8fafc"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dominant-baseline="middle" fill="%2394a3b8" font-size="22" font-family="Arial"%3ECargar imagen%3C/text%3E%3C/svg%3E';
+            node.style.objectFit = 'cover';
+        } else {
+            node.textContent = el.value;
+        }
         node.onclick = () => { flyerState.selectedElementId = el.id; renderFlyerBuilder(); };
+        node.onmousedown = (event) => beginFlyerDrag(event, el.id);
+        if (flyerState.selectedElementId === el.id) {
+            const resize = document.createElement('button');
+            resize.type = 'button';
+            resize.className = 'absolute bottom-0 right-0 h-4 w-4 rounded-full bg-baby-pink border border-white';
+            resize.onmousedown = (event) => beginFlyerResize(event, el.id);
+            node.appendChild(resize);
+        }
         canvas.appendChild(node);
     });
 
     elementsList.innerHTML = '';
     flyerState.elements.forEach(el => {
-        elementsList.innerHTML += `<div class="p-2 rounded-xl border ${flyerState.selectedElementId === el.id ? 'border-baby-pink' : 'border-baby-blue-light'}"><div class="text-xs mb-1">${el.type.toUpperCase()}</div><input class="w-full p-2 border rounded" value="${el.value}" oninput="flyerUpdateElement('${el.id}', this.value)"></div>`;
+        if (el.type === 'image') {
+            elementsList.innerHTML += `<div class="p-2 rounded-xl border ${flyerState.selectedElementId === el.id ? 'border-baby-pink' : 'border-baby-blue-light'}"><div class="text-xs mb-1">IMAGEN</div><input class="w-full p-2 border rounded mb-2" placeholder="URL opcional" value="${el.value || ''}" oninput="flyerUpdateElement('${el.id}', this.value)"><input type="file" accept="image/*" class="w-full p-2 border rounded" onchange="flyerUploadElementImage('${el.id}', this.files[0])"></div>`;
+            return;
+        }
+
+        elementsList.innerHTML += `<div class="p-2 rounded-xl border ${flyerState.selectedElementId === el.id ? 'border-baby-pink' : 'border-baby-blue-light'}"><div class="text-xs mb-1">TEXTO</div><input class="w-full p-2 border rounded" value="${el.value}" oninput="flyerUpdateElement('${el.id}', this.value)"></div>`;
     });
 
     const roleLabel = document.getElementById('flyer-current-role');
