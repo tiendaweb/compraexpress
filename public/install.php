@@ -10,6 +10,8 @@ $scriptDir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
 $basePath = $scriptDir === '/' || $scriptDir === '.' ? '' : rtrim($scriptDir, '/');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
+require_once $root . '/app/Install/InstallationState.php';
+
 if (isValidInstallation($configPath)) {
     header('Location: ' . appUrl($basePath, '/'));
     exit;
@@ -57,7 +59,7 @@ function handleInstall(string $configPath, string $migrationPath, string $basePa
     ];
 
     try {
-        $pdo = createPdo($dbConfig);
+        $pdo = installationCreatePdo($dbConfig);
 
         $sql = file_get_contents($migrationPath);
         if ($sql === false) {
@@ -98,42 +100,6 @@ function handleInstall(string $configPath, string $migrationPath, string $basePa
 
     header('Location: ' . appUrl($basePath, '/'));
     exit;
-}
-
-function isValidInstallation(string $configPath): bool
-{
-    if (!file_exists($configPath)) {
-        return false;
-    }
-
-    $config = require $configPath;
-    if (!is_array($config) || !isset($config['db']) || !is_array($config['db'])) {
-        return false;
-    }
-
-    try {
-        createPdo($config['db']);
-    } catch (PDOException) {
-        return false;
-    }
-
-    return true;
-}
-
-function createPdo(array $db): PDO
-{
-    $dsn = sprintf(
-        'mysql:host=%s;port=%d;dbname=%s;charset=%s',
-        $db['host'],
-        $db['port'],
-        $db['name'],
-        $db['charset'] ?? 'utf8mb4'
-    );
-
-    return new PDO($dsn, (string) $db['user'], (string) $db['pass'], [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
 }
 
 function writeConfigFile(string $configPath, array $db, string $appName): void
