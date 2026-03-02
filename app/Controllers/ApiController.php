@@ -10,6 +10,7 @@ use App\Repositories\OrderRepository;
 use App\Repositories\ProductRepository;
 use App\Repositories\SettingRepository;
 use App\Repositories\SlideRepository;
+use App\Repositories\UserRepository;
 use PDOException;
 
 class ApiController
@@ -21,6 +22,7 @@ class ApiController
         private readonly FlyerRepository $flyers,
         private readonly OrderRepository $orders,
         private readonly MediaRepository $media,
+        private readonly UserRepository $users,
     ) {
     }
 
@@ -45,6 +47,59 @@ class ApiController
         }
     }
 
+    public function me(): void
+    {
+        $user = $this->requireAuth();
+        $this->json(['user' => $this->sanitizeUser($user)]);
+    }
+
+    public function login(): void
+    {
+        $data = json_decode((string) file_get_contents('php://input'), true);
+        $email = trim(strtolower((string) ($data['email'] ?? '')));
+        $password = (string) ($data['password'] ?? '');
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || $password === '') {
+            $this->json(['error' => 'Email y contraseña son obligatorios.'], 422);
+            return;
+        }
+
+        $user = $this->users->findByEmail($email);
+        if ($user === null || !password_verify($password, (string) $user['password_hash'])) {
+            $this->json(['error' => 'Credenciales inválidas.'], 401);
+            return;
+        }
+
+        $role = strtolower((string) $user['role']);
+        if (!in_array($role, ['admin', 'gestion'], true)) {
+            $this->json(['error' => 'El usuario no tiene un rol válido.'], 403);
+            return;
+        }
+
+        session_regenerate_id(true);
+        $_SESSION['user'] = [
+            'id' => (int) $user['id'],
+            'name' => (string) $user['name'],
+            'email' => (string) $user['email'],
+            'role' => $role,
+        ];
+
+        $this->json(['user' => $this->sanitizeUser($_SESSION['user'])]);
+    }
+
+    public function logout(): void
+    {
+        $_SESSION = [];
+
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], (bool) $params['secure'], (bool) $params['httponly']);
+        }
+
+        session_destroy();
+        $this->json(['ok' => true]);
+    }
+
     public function getProducts(): void
     {
         $status = isset($_GET['status']) ? trim((string) $_GET['status']) : null;
@@ -53,8 +108,9 @@ class ApiController
 
     public function createProduct(): void
     {
-        $data = json_decode((string) file_get_contents('php://input'), true);
+        $this->enforceRole(['admin', 'gestion']);
 
+        $data = json_decode((string) file_get_contents('php://input'), true);
         $name = trim((string) ($data['name'] ?? ''));
         $price = (int) ($data['price'] ?? 0);
         $img = trim((string) ($data['img'] ?? ''));
@@ -74,6 +130,8 @@ class ApiController
 
     public function uploadMedia(): void
     {
+        $this->enforceRole(['admin', 'gestion']);
+
         if (!isset($_FILES['file']) || !is_array($_FILES['file'])) {
             $this->json(['error' => 'Debes adjuntar un archivo en el campo "file".'], 422);
             return;
@@ -131,8 +189,7 @@ class ApiController
         }
 
         $publicPath = $relativeDir . '/' . $uniqueName;
-        $uploadedBy = isset($_POST['uploaded_by']) ? trim((string) $_POST['uploaded_by']) : null;
-        $uploadedBy = $uploadedBy === '' ? null : $uploadedBy;
+        $uploadedBy = $this->currentUser()['email'] ?? null;
         $media = $this->media->create($originalName, $publicPath, $mimeType, $size, $uploadedBy);
 
         $this->json([
@@ -143,8 +200,9 @@ class ApiController
 
     public function deleteProduct(int $id): void
     {
-        $deleted = $this->products->delete($id);
+        $this->enforceRole(['admin', 'gestion']);
 
+        $deleted = $this->products->delete($id);
         if (!$deleted) {
             $this->json(['error' => 'Producto no encontrado.'], 404);
             return;
@@ -165,11 +223,14 @@ class ApiController
 
     public function getFlyers(): void
     {
+        $this->enforceRole(['admin']);
         $this->json($this->flyers->all());
     }
 
     public function getFlyer(int $id): void
     {
+        $this->enforceRole(['admin']);
+
         $flyer = $this->flyers->find($id);
         if ($flyer === null) {
             $this->json(['error' => 'Flyer no encontrado.'], 404);
@@ -181,11 +242,13 @@ class ApiController
 
     public function saveFlyer(): void
     {
+        $this->enforceRole(['admin']);
+
         $data = json_decode((string) file_get_contents('php://input'), true);
         $id = isset($data['id']) ? (int) $data['id'] : null;
         $title = trim((string) ($data['title'] ?? ''));
-        $layout = $data['layout'] ?? null;
         $productId = isset($data['product_id']) && $data['product_id'] !== '' ? (int) $data['product_id'] : null;
+        $layout = $data['layout'] ?? [];
 
         if ($title === '' || !is_array($layout)) {
             $this->json(['error' => 'Título y layout son obligatorios.'], 422);
@@ -212,10 +275,9 @@ class ApiController
         $this->json($this->flyers->create($title, $layoutJson, $productId), 201);
     }
 
-
     public function exportFlyer(int $id): void
     {
-        $this->enforceRole(['admin', 'marketing']);
+        $this->enforceRole(['admin']);
 
         $flyer = $this->flyers->find($id);
         if ($flyer === null) {
@@ -225,8 +287,7 @@ class ApiController
 
         $data = json_decode((string) file_get_contents('php://input'), true);
         $imagePayload = trim((string) ($data['image'] ?? ''));
-        $exportedBy = trim((string) ($data['exported_by'] ?? $this->resolveRole()));
-        $exportedBy = $exportedBy === '' ? null : $exportedBy;
+        $exportedBy = $this->currentUser()['email'] ?? null;
 
         if (!preg_match('#^data:image/png;base64,#', $imagePayload)) {
             $this->json(['error' => 'La imagen debe enviarse en formato PNG base64 (data URL).'], 422);
@@ -267,7 +328,7 @@ class ApiController
 
     public function listFlyerExports(int $id): void
     {
-        $this->enforceRole(['admin', 'marketing']);
+        $this->enforceRole(['admin']);
 
         $flyer = $this->flyers->find($id);
         if ($flyer === null) {
@@ -319,14 +380,16 @@ class ApiController
 
     public function getOrders(): void
     {
+        $this->enforceRole(['admin']);
+
         $archived = isset($_GET['archived']) && (int) $_GET['archived'] === 1;
         $this->json($archived ? $this->orders->allArchivedWithItems() : $this->orders->allActiveWithItems());
     }
 
-
-
     public function updateProductStatus(int $id): void
     {
+        $this->enforceRole(['admin', 'gestion']);
+
         $data = json_decode((string) file_get_contents('php://input'), true);
         $isActive = isset($data['is_active']) ? (int) $data['is_active'] : null;
 
@@ -346,6 +409,8 @@ class ApiController
 
     public function updateOrderStatus(int $id): void
     {
+        $this->enforceRole(['admin']);
+
         $data = json_decode((string) file_get_contents('php://input'), true);
         $status = trim((string) ($data['status'] ?? ''));
         $archiveFlag = isset($data['archived']) ? (int) $data['archived'] : 0;
@@ -367,7 +432,7 @@ class ApiController
             return;
         }
 
-        $changedBy = trim((string) ($data['changed_by'] ?? 'admin'));
+        $changedBy = $this->currentUser()['email'] ?? 'system';
         $order = $this->orders->updateStatus($id, $status, $changedBy);
         if ($order === null) {
             $this->json(['error' => 'Pedido no encontrado.'], 404);
@@ -376,7 +441,6 @@ class ApiController
 
         $this->json($order);
     }
-
 
     private function enforceRole(array $allowedRoles): void
     {
@@ -389,14 +453,49 @@ class ApiController
 
     private function resolveRole(): string
     {
-        $headerRole = trim((string) ($_SERVER['HTTP_X_USER_ROLE'] ?? ''));
-        $headerRole = strtolower($headerRole);
+        $user = $this->requireAuth();
+        return strtolower((string) ($user['role'] ?? ''));
+    }
 
-        if ($headerRole !== '') {
-            return $headerRole;
+    private function requireAuth(): array
+    {
+        $user = $this->currentUser();
+        if ($user === null) {
+            $this->json(['error' => 'Debes iniciar sesión.'], 401);
+            exit;
         }
 
-        return 'admin';
+        return $user;
+    }
+
+    private function currentUser(): ?array
+    {
+        $user = $_SESSION['user'] ?? null;
+        if (!is_array($user) || !isset($user['id'])) {
+            return null;
+        }
+
+        $dbUser = $this->users->findById((int) $user['id']);
+        if ($dbUser === null) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $dbUser['id'],
+            'name' => (string) $dbUser['name'],
+            'email' => (string) $dbUser['email'],
+            'role' => strtolower((string) $dbUser['role']),
+        ];
+    }
+
+    private function sanitizeUser(array $user): array
+    {
+        return [
+            'id' => (int) $user['id'],
+            'name' => (string) $user['name'],
+            'email' => (string) $user['email'],
+            'role' => strtolower((string) $user['role']),
+        ];
     }
 
     private function isInstallationSchemaError(PDOException $exception): bool

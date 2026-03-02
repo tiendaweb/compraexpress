@@ -7,7 +7,8 @@ const storeState = {
     },
     flyers: [],
     orders: [],
-    currentRole: (localStorage.getItem('currentUserRole') || 'admin').toLowerCase()
+    currentUser: null,
+    currentRole: 'guest'
 };
 
 const flyerState = {
@@ -31,7 +32,6 @@ async function fetchJSON(url, options = {}) {
     const baseHeaders = options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' };
     const headers = {
         ...baseHeaders,
-        'X-User-Role': storeState.currentRole,
         ...(options.headers || {}),
     };
 
@@ -55,14 +55,110 @@ async function fetchJSON(url, options = {}) {
     return payload;
 }
 
+
+function hasRole(...roles) {
+    return roles.includes(storeState.currentRole);
+}
+
+function openLoginModal() {
+    const modal = document.getElementById('login-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeLoginModal() {
+    const modal = document.getElementById('login-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function refreshAuth() {
+    try {
+        const payload = await fetchJSON('/api/auth/me');
+        storeState.currentUser = payload.user;
+        storeState.currentRole = String(payload.user.role || '').toLowerCase();
+    } catch (error) {
+        if (error.status !== 401) throw error;
+        storeState.currentUser = null;
+        storeState.currentRole = 'guest';
+    }
+
+    applyRoleUI();
+}
+
+async function login() {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+
+    try {
+        await fetchJSON('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+        document.getElementById('login-password').value = '';
+        closeLoginModal();
+        await initStore();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function logout() {
+    try {
+        await fetchJSON('/api/auth/logout', { method: 'POST' });
+    } finally {
+        storeState.currentUser = null;
+        storeState.currentRole = 'guest';
+        applyRoleUI();
+        showTab('store');
+    }
+}
+
+function applyRoleUI() {
+    const adminTab = document.getElementById('tab-admin');
+    const flyersTab = document.getElementById('tab-flyers');
+    const ordersSection = document.getElementById('admin-orders-section');
+    const loginBtn = document.getElementById('auth-open-login');
+    const logoutBtn = document.getElementById('auth-logout');
+    const badge = document.getElementById('auth-user-badge');
+
+    const canManageProducts = hasRole('admin', 'gestion');
+    const isAdmin = hasRole('admin');
+
+    if (adminTab) adminTab.classList.toggle('hidden', !canManageProducts);
+    if (flyersTab) flyersTab.classList.toggle('hidden', !isAdmin);
+    if (ordersSection) ordersSection.classList.toggle('hidden', !isAdmin);
+
+    if (badge) {
+        if (storeState.currentUser) {
+            badge.classList.remove('hidden');
+            badge.textContent = `${storeState.currentUser.name} (${storeState.currentRole})`;
+        } else {
+            badge.classList.add('hidden');
+            badge.textContent = '';
+        }
+    }
+
+    if (loginBtn) loginBtn.classList.toggle('hidden', !!storeState.currentUser);
+    if (logoutBtn) logoutBtn.classList.toggle('hidden', !storeState.currentUser);
+}
+
 async function initStore() {
+    await refreshAuth();
+
     const data = await fetchJSON('/api/bootstrap');
     storeState.products = data.products || [];
     storeState.slides = data.slides || [];
     storeState.config = { ...storeState.config, ...(data.config || {}) };
 
-    await initFlyers();
-    await loadOrders();
+    if (hasRole('admin')) {
+        await initFlyers();
+    } else {
+        storeState.flyers = [];
+        renderFlyerExports([]);
+    }
+
+    if (hasRole('admin')) {
+        await loadOrders();
+    } else {
+        storeState.orders = [];
+    }
+
     renderSlider();
     renderProducts();
     updateCartUI();
@@ -144,6 +240,8 @@ async function sendOrder() {
 }
 
 function showTab(tabName) {
+    if (tabName === 'admin' && !hasRole('admin', 'gestion')) return;
+    if (tabName === 'flyers' && !hasRole('admin')) return;
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.querySelectorAll('nav button').forEach(el => el.classList.remove('active-tab'));
 
@@ -166,7 +264,8 @@ function renderAdminList() {
 
     storeState.products.forEach(p => {
         const target = Number(p.is_active) === 1 ? activeList : archivedList;
-        target.innerHTML += `<div draggable="true" ondragstart="onProductDragStart(event)" data-product-id="${p.id}" class="flex items-center gap-3 bg-white p-3 rounded-xl border border-baby-blue-light hover:border-baby-blue cursor-move"><img src="${p.img}" class="w-12 h-12 object-contain bg-baby-cream rounded-lg"><div class="flex-1"><p class="font-bold text-sm text-baby-text">${p.name}</p><p class="text-xs text-baby-pink font-bold">${storeState.config.currency}${Number(p.price).toLocaleString()}</p></div><button onclick="adminDeleteProduct(${p.id})" class="text-red-400 p-2 hover:text-red-600 active:scale-95"><i class="fa-solid fa-trash-can"></i></button></div>`;
+        const deleteAction = hasRole('admin') ? `<button onclick=\"adminDeleteProduct(${p.id})\" class=\"text-red-400 p-2 hover:text-red-600 active:scale-95\"><i class=\"fa-solid fa-trash-can\"></i></button>` : '';
+        target.innerHTML += `<div draggable=\"${hasRole('admin', 'gestion')}\" ondragstart=\"onProductDragStart(event)\" data-product-id=\"${p.id}\" class=\"flex items-center gap-3 bg-white p-3 rounded-xl border border-baby-blue-light hover:border-baby-blue ${hasRole('admin', 'gestion') ? 'cursor-move' : ''}\"><img src=\"${p.img}\" class=\"w-12 h-12 object-contain bg-baby-cream rounded-lg\"><div class=\"flex-1\"><p class=\"font-bold text-sm text-baby-text\">${p.name}</p><p class=\"text-xs text-baby-pink font-bold\">${storeState.config.currency}${Number(p.price).toLocaleString()}</p></div>${deleteAction}</div>`;
     });
 
     setupProductDnD();
@@ -266,6 +365,11 @@ function setupProductDnD() {
 }
 
 async function loadOrders() {
+    if (!hasRole('admin')) {
+        storeState.orders = [];
+        return;
+    }
+
     try {
         const [active, archived] = await Promise.all([
             fetchJSON('/api/orders'),
@@ -466,7 +570,7 @@ async function flyerSave() {
 
 
 function canExportFlyers() {
-    return ['admin', 'marketing'].includes(storeState.currentRole);
+    return ['admin'].includes(storeState.currentRole);
 }
 
 async function flyerExportCurrent() {
