@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS flyers (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(200) NOT NULL,
     product_id BIGINT UNSIGNED NULL,
+    template_id VARCHAR(80) NOT NULL DEFAULT 'custom',
+    bg_color VARCHAR(20) NOT NULL DEFAULT '#fffaf0',
     layout_json JSON NOT NULL,
     latest_export_path VARCHAR(500) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

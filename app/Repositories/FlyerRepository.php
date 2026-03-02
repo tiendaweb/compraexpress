@@ -8,28 +8,37 @@ use PDO;
 
 class FlyerRepository
 {
+    private ?bool $hasTemplateColumns = null;
+
     public function __construct(private readonly PDO $pdo)
     {
     }
 
     public function all(): array
     {
-        $stmt = $this->pdo->query('SELECT id, title, product_id, layout_json, latest_export_path, updated_at FROM flyers ORDER BY updated_at DESC');
+        $stmt = $this->pdo->query('SELECT ' . $this->flyerSelectColumns() . ' FROM flyers ORDER BY updated_at DESC');
         return $stmt->fetchAll();
     }
 
     public function find(int $id): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT id, title, product_id, layout_json, latest_export_path, updated_at FROM flyers WHERE id = :id LIMIT 1');
+        $stmt = $this->pdo->prepare('SELECT ' . $this->flyerSelectColumns() . ' FROM flyers WHERE id = :id LIMIT 1');
         $stmt->execute([':id' => $id]);
         $row = $stmt->fetch();
 
         return $row === false ? null : $row;
     }
 
-    public function create(string $title, string $layoutJson, ?int $productId): array
+    public function create(string $title, string $layoutJson, ?int $productId, ?string $templateId, ?string $bgColor): array
     {
-        $stmt = $this->pdo->prepare('INSERT INTO flyers (title, product_id, layout_json) VALUES (:title, :product_id, :layout_json)');
+        if ($this->supportsTemplateColumns()) {
+            $stmt = $this->pdo->prepare('INSERT INTO flyers (title, product_id, template_id, bg_color, layout_json) VALUES (:title, :product_id, :template_id, :bg_color, :layout_json)');
+            $stmt->bindValue(':template_id', $templateId ?: 'custom');
+            $stmt->bindValue(':bg_color', $bgColor ?: '#fffaf0');
+        } else {
+            $stmt = $this->pdo->prepare('INSERT INTO flyers (title, product_id, layout_json) VALUES (:title, :product_id, :layout_json)');
+        }
+
         $stmt->bindValue(':title', $title);
         $stmt->bindValue(':layout_json', $layoutJson);
         $stmt->bindValue(':product_id', $productId, $productId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
@@ -38,9 +47,16 @@ class FlyerRepository
         return $this->find((int) $this->pdo->lastInsertId()) ?? [];
     }
 
-    public function update(int $id, string $title, string $layoutJson, ?int $productId): ?array
+    public function update(int $id, string $title, string $layoutJson, ?int $productId, ?string $templateId, ?string $bgColor): ?array
     {
-        $stmt = $this->pdo->prepare('UPDATE flyers SET title = :title, product_id = :product_id, layout_json = :layout_json WHERE id = :id');
+        if ($this->supportsTemplateColumns()) {
+            $stmt = $this->pdo->prepare('UPDATE flyers SET title = :title, product_id = :product_id, template_id = :template_id, bg_color = :bg_color, layout_json = :layout_json WHERE id = :id');
+            $stmt->bindValue(':template_id', $templateId ?: 'custom');
+            $stmt->bindValue(':bg_color', $bgColor ?: '#fffaf0');
+        } else {
+            $stmt = $this->pdo->prepare('UPDATE flyers SET title = :title, product_id = :product_id, layout_json = :layout_json WHERE id = :id');
+        }
+
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         $stmt->bindValue(':title', $title);
         $stmt->bindValue(':layout_json', $layoutJson);
@@ -80,5 +96,29 @@ class FlyerRepository
         $row = $stmt->fetch();
 
         return $row === false ? null : $row;
+    }
+
+    private function flyerSelectColumns(): string
+    {
+        if ($this->supportsTemplateColumns()) {
+            return 'id, title, product_id, template_id, bg_color, layout_json, latest_export_path, updated_at';
+        }
+
+        return "id, title, product_id, 'custom' AS template_id, '#fffaf0' AS bg_color, layout_json, latest_export_path, updated_at";
+    }
+
+    private function supportsTemplateColumns(): bool
+    {
+        if ($this->hasTemplateColumns !== null) {
+            return $this->hasTemplateColumns;
+        }
+
+        $stmt = $this->pdo->query("SHOW COLUMNS FROM flyers LIKE 'template_id'");
+        $templateExists = $stmt->fetchColumn() !== false;
+        $stmt = $this->pdo->query("SHOW COLUMNS FROM flyers LIKE 'bg_color'");
+        $bgColorExists = $stmt->fetchColumn() !== false;
+
+        $this->hasTemplateColumns = $templateExists && $bgColorExists;
+        return $this->hasTemplateColumns;
     }
 }

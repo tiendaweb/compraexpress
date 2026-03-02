@@ -15,6 +15,8 @@ const flyerState = {
     id: null,
     title: '',
     productId: null,
+    templateId: 'custom',
+    bgColor: '#fffaf0',
     elements: [],
     selectedElementId: null
 };
@@ -26,6 +28,65 @@ const appBasePath = (window.APP_BASE_PATH || '').replace(/\/$/, '');
 function appUrl(path) {
     if (!path.startsWith('/')) return path;
     return `${appBasePath}${path}` || '/';
+}
+
+function deepClone(value) {
+    return JSON.parse(JSON.stringify(value));
+}
+
+function normalizeTemplateElement(rawElement = {}) {
+    const normalized = {
+        id: rawElement.id || `e${Date.now()}`,
+        type: rawElement.type === 'image' ? 'image' : 'text',
+        x: Number(rawElement.x) || 0,
+        y: Number(rawElement.y) || 0,
+        w: Number(rawElement.w) || 160,
+        h: Number(rawElement.h) || 80,
+        styles: { ...(rawElement.styles || {}) }
+    };
+
+    if (normalized.type === 'image') {
+        normalized.value = rawElement.value || rawElement.src || '';
+        return normalized;
+    }
+
+    normalized.value = rawElement.value || rawElement.content || 'Texto';
+    return normalized;
+}
+
+function normalizeTemplateDefinition(templateId, template = {}) {
+    const elements = Array.isArray(template.elements) ? template.elements.map(normalizeTemplateElement) : [];
+    return {
+        id: templateId,
+        name: template.name || templateId,
+        bgColor: template.bgColor || '#fffaf0',
+        elements,
+    };
+}
+
+function getTemplateCatalog() {
+    const catalog = window.FLYER_TEMPLATE_CATALOG || {};
+    return Object.entries(catalog).reduce((acc, [id, template]) => {
+        acc[id] = normalizeTemplateDefinition(id, template);
+        return acc;
+    }, {});
+}
+
+function loadTemplateInBuilder(templateId = 'custom') {
+    const templates = getTemplateCatalog();
+    flyerState.templateId = templateId;
+
+    if (templateId === 'custom' || !templates[templateId]) {
+        flyerState.bgColor = '#fffaf0';
+        flyerState.elements = [];
+        flyerState.selectedElementId = null;
+        return;
+    }
+
+    const template = deepClone(templates[templateId]);
+    flyerState.bgColor = template.bgColor;
+    flyerState.elements = template.elements;
+    flyerState.selectedElementId = flyerState.elements[0]?.id || null;
 }
 
 async function fetchJSON(url, options = {}) {
@@ -468,6 +529,9 @@ async function initFlyers() {
         try {
             const parsed = JSON.parse(cached);
             Object.assign(flyerState, parsed);
+            flyerState.templateId = parsed.templateId || 'custom';
+            flyerState.bgColor = parsed.bgColor || '#fffaf0';
+            flyerState.elements = Array.isArray(parsed.elements) ? parsed.elements.map(normalizeTemplateElement) : [];
         } catch (_) {}
     }
     renderFlyerSelectors();
@@ -481,6 +545,7 @@ async function initFlyers() {
 function renderFlyerSelectors() {
     const saved = document.getElementById('flyer-saved');
     const product = document.getElementById('flyer-product-select');
+    const templateSelect = document.getElementById('flyer-template-select');
     if (!saved || !product) return;
 
     saved.innerHTML = '<option value="">-- Flyers guardados --</option>';
@@ -489,13 +554,29 @@ function renderFlyerSelectors() {
     product.innerHTML = '<option value="">Producto relacionado (opcional)</option>';
     storeState.products.forEach(p => product.innerHTML += `<option value="${p.id}">${p.name}</option>`);
 
+    if (templateSelect) {
+        const templates = getTemplateCatalog();
+        const options = Object.values(templates)
+            .map(template => `<option value="${template.id}">${template.name}</option>`)
+            .join('');
+        templateSelect.innerHTML = '<option value="custom">-- Diseño libre --</option>' + options;
+        templateSelect.value = flyerState.templateId || 'custom';
+        templateSelect.onchange = (event) => {
+            loadTemplateInBuilder(event.target.value || 'custom');
+            renderFlyerBuilder();
+        };
+    }
+
     saved.onchange = async (e) => {
         if (!e.target.value) return;
         const data = await fetchJSON(`/api/flyers/${e.target.value}`);
         flyerState.id = Number(data.id);
         flyerState.title = data.title;
         flyerState.productId = data.product_id ? Number(data.product_id) : null;
-        flyerState.elements = JSON.parse(data.layout_json || '[]');
+        flyerState.templateId = data.template_id || 'custom';
+        flyerState.bgColor = data.bg_color || '#fffaf0';
+        const parsedElements = JSON.parse(data.layout_json || '[]');
+        flyerState.elements = Array.isArray(parsedElements) ? parsedElements.map(normalizeTemplateElement) : [];
         flyerState.selectedElementId = flyerState.elements[0]?.id || null;
         renderFlyerBuilder();
         await loadFlyerExports(flyerState.id);
@@ -506,8 +587,7 @@ function flyerNew() {
     flyerState.id = null;
     flyerState.title = '';
     flyerState.productId = null;
-    flyerState.elements = [];
-    flyerState.selectedElementId = null;
+    loadTemplateInBuilder(flyerState.templateId || 'custom');
     renderFlyerBuilder();
     renderFlyerExports([]);
 }
@@ -515,8 +595,8 @@ function flyerNew() {
 function flyerAddElement(type) {
     const id = 'e' + Date.now();
     flyerState.elements.push(type === 'text'
-        ? { id, type: 'text', value: 'Texto', x: 20, y: 20, w: 180, h: 40 }
-        : { id, type: 'image', value: '', x: 40, y: 80, w: 160, h: 160 });
+        ? { id, type: 'text', value: 'Texto', x: 20, y: 20, w: 180, h: 40, styles: {} }
+        : { id, type: 'image', value: '', x: 40, y: 80, w: 160, h: 160, styles: { objectFit: 'cover' } });
     flyerState.selectedElementId = id;
     renderFlyerBuilder();
 }
@@ -621,17 +701,34 @@ function renderFlyerBuilder() {
     titleInput.value = flyerState.title;
     titleInput.oninput = (e) => { flyerState.title = e.target.value; cacheFlyerDraft(); };
     if (productSelect) productSelect.value = flyerState.productId || '';
+    const templateSelect = document.getElementById('flyer-template-select');
+    if (templateSelect) templateSelect.value = flyerState.templateId || 'custom';
 
     canvas.innerHTML = '';
+    canvas.style.backgroundColor = flyerState.bgColor || '#fffaf0';
     flyerState.elements.forEach(el => {
         const node = document.createElement(el.type === 'image' ? 'img' : 'div');
-        node.className = `absolute border p-1 bg-white/80 ${flyerState.selectedElementId === el.id ? 'border-baby-pink' : 'border-transparent'}`;
-        node.style.left = `${el.x}px`; node.style.top = `${el.y}px`; node.style.width = `${el.w}px`; node.style.height = `${el.h}px`;
+        const styles = el.styles || {};
+        node.className = `absolute border p-1 ${flyerState.selectedElementId === el.id ? 'border-baby-pink' : 'border-transparent'}`;
+        node.style.left = `${el.x}px`;
+        node.style.top = `${el.y}px`;
+        node.style.width = `${el.w}px`;
+        node.style.height = `${el.h}px`;
+        if (styles.backgroundColor) node.style.backgroundColor = styles.backgroundColor;
+        if (styles.borderRadius) node.style.borderRadius = styles.borderRadius;
+
         if (el.type === 'image') {
-            node.src = el.value || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="320" height="320"%3E%3Crect width="100%25" height="100%25" fill="%23f8fafc"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dominant-baseline="middle" fill="%2394a3b8" font-size="22" font-family="Arial"%3ECargar imagen%3C/text%3E%3C/svg%3E';
-            node.style.objectFit = 'cover';
+            node.src = el.value || el.src || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="320" height="320"%3E%3Crect width="100%25" height="100%25" fill="%23f8fafc"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dominant-baseline="middle" fill="%2394a3b8" font-size="22" font-family="Arial"%3ECargar imagen%3C/text%3E%3C/svg%3E';
+            node.style.objectFit = styles.objectFit || 'cover';
         } else {
             node.textContent = el.value;
+            node.style.fontSize = styles.fontSize || '24px';
+            node.style.fontWeight = styles.fontWeight || 'normal';
+            node.style.color = styles.color || '#111827';
+            node.style.textAlign = styles.textAlign || 'left';
+            node.style.display = 'flex';
+            node.style.alignItems = 'center';
+            node.style.justifyContent = styles.textAlign === 'center' ? 'center' : (styles.textAlign === 'right' ? 'flex-end' : 'flex-start');
         }
         node.onclick = () => { flyerState.selectedElementId = el.id; renderFlyerBuilder(); };
         node.onmousedown = (event) => beginFlyerDrag(event, el.id);
@@ -672,7 +769,7 @@ function cacheFlyerDraft() { localStorage.setItem('flyerDraftCache', JSON.string
 
 async function flyerSave() {
     if (!flyerState.title.trim()) return alert('Agrega un título.');
-    const payload = { id: flyerState.id, title: flyerState.title, product_id: flyerState.productId, layout: flyerState.elements };
+    const payload = { id: flyerState.id, title: flyerState.title, product_id: flyerState.productId, template_id: flyerState.templateId, bg_color: flyerState.bgColor, layout: flyerState.elements.map(normalizeTemplateElement) };
     const saved = await fetchJSON('/api/flyers', { method: 'POST', body: JSON.stringify(payload) });
     flyerState.id = Number(saved.id);
     localStorage.setItem('flyerDraftCache', JSON.stringify(flyerState));

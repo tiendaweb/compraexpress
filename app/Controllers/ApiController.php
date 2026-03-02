@@ -248,6 +248,8 @@ class ApiController
         $id = isset($data['id']) ? (int) $data['id'] : null;
         $title = trim((string) ($data['title'] ?? ''));
         $productId = isset($data['product_id']) && $data['product_id'] !== '' ? (int) $data['product_id'] : null;
+        $templateId = trim((string) ($data['template_id'] ?? 'custom'));
+        $bgColor = trim((string) ($data['bg_color'] ?? '#fffaf0'));
         $layout = $data['layout'] ?? [];
 
         if ($title === '' || !is_array($layout)) {
@@ -262,7 +264,7 @@ class ApiController
         }
 
         if ($id !== null && $id > 0) {
-            $flyer = $this->flyers->update($id, $title, $layoutJson, $productId);
+            $flyer = $this->flyers->update($id, $title, $layoutJson, $productId, $templateId, $bgColor);
             if ($flyer === null) {
                 $this->json(['error' => 'Flyer no encontrado para actualizar.'], 404);
                 return;
@@ -272,7 +274,7 @@ class ApiController
             return;
         }
 
-        $this->json($this->flyers->create($title, $layoutJson, $productId), 201);
+        $this->json($this->flyers->create($title, $layoutJson, $productId, $templateId, $bgColor), 201);
     }
 
     public function exportFlyer(int $id): void
