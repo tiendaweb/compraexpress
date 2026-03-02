@@ -1,0 +1,11 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Si el host apunta al raíz del proyecto, redirigir al /public sin romper rutas.
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ public/$1 [L,QSA]
+</IfModule>
+
+DirectoryIndex public/index.php index.php index.html

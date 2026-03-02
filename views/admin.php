@@ -35,30 +35,4 @@
         </div>
     </div>
 
-    <div id="admin-orders-section" class="bg-white p-6 rounded-3xl shadow-lg border-2 border-baby-blue-light">
-        <h3 class="text-xl font-bold text-baby-text mb-4"><i class="fa-solid fa-box text-baby-pink"></i> Pedidos</h3>
-        <div class="grid lg:grid-cols-5 gap-4" id="orders-kanban">
-            <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
-                <h4 class="font-bold mb-3">Nuevo</h4>
-                <div id="orders-col-nuevo" data-status="nuevo" class="space-y-3 min-h-[220px]"></div>
-            </div>
-            <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
-                <h4 class="font-bold mb-3">En preparación</h4>
-                <div id="orders-col-en_preparacion" data-status="en_preparacion" class="space-y-3 min-h-[220px]"></div>
-            </div>
-            <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
-                <h4 class="font-bold mb-3">En viaje</h4>
-                <div id="orders-col-en_viaje" data-status="en_viaje" class="space-y-3 min-h-[220px]"></div>
-            </div>
-            <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
-                <h4 class="font-bold mb-3">Entregado</h4>
-                <div id="orders-col-entregado" data-status="entregado" class="space-y-3 min-h-[220px]"></div>
-            </div>
-
-            <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
-                <h4 class="font-bold mb-3">Archivados</h4>
-                <div id="orders-col-archived" data-status="archived" class="space-y-3 min-h-[220px]"></div>
-            </div>
-        </div>
-    </div>
 </div>

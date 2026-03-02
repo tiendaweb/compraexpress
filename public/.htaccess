@@ -1,0 +1,14 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Servir archivos/directorios reales directamente.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Mantener endpoint de instalación accesible.
+    RewriteRule ^install\.php$ install.php [L,QSA]
+
+    # Todo lo demás pasa por el front controller.
+    RewriteRule ^ index.php [L,QSA]
+</IfModule>

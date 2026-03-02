@@ -276,6 +276,9 @@ function appUrl(string $basePath, string $path): string
             <button onclick="showTab('admin')" id="tab-admin" class="flex-1 py-3 text-center text-gray-500 hover:text-baby-text transition items-center justify-center gap-2 flex">
                 <i class="fa-solid fa-tools"></i> Admin Productos
             </button>
+            <button onclick="showTab('orders')" id="tab-orders" class="flex-1 py-3 text-center text-gray-500 hover:text-baby-text transition items-center justify-center gap-2 flex">
+                <i class="fa-solid fa-box"></i> Pedidos
+            </button>
             <button onclick="showTab('flyers')" id="tab-flyers" class="flex-1 py-3 text-center text-gray-500 hover:text-baby-text transition items-center justify-center gap-2 flex">
                 <i class="fa-solid fa-image"></i> Flyers
             </button>
@@ -285,6 +288,7 @@ function appUrl(string $basePath, string $path): string
 
 <?php require __DIR__ . '/../views/store.php'; ?>
 <?php require __DIR__ . '/../views/admin.php'; ?>
+<?php require __DIR__ . '/../views/orders.php'; ?>
 <?php require __DIR__ . '/../views/flyers.php'; ?>
 
 <div id="cart-overlay" onclick="toggleCart()" class="fixed inset-0 bg-black/50 z-50 hidden"></div>
