@@ -37,22 +37,21 @@ CREATE TABLE IF NOT EXISTS settings (
 
 CREATE TABLE IF NOT EXISTS orders (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    customer_name VARCHAR(160) NOT NULL,
-    customer_address VARCHAR(255) NOT NULL,
-    customer_phone VARCHAR(40),
-    status VARCHAR(40) NOT NULL DEFAULT 'pending',
-    total_amount INT UNSIGNED NOT NULL DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    customer_name VARCHAR(160) NULL,
+    whatsapp_payload TEXT NOT NULL,
+    total INT UNSIGNED NOT NULL,
+    status VARCHAR(40) NOT NULL DEFAULT 'nuevo',
+    archived TINYINT(1) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS order_items (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     order_id BIGINT UNSIGNED NOT NULL,
     product_id BIGINT UNSIGNED NULL,
-    product_name VARCHAR(200) NOT NULL,
-    quantity INT UNSIGNED NOT NULL,
-    unit_price INT UNSIGNED NOT NULL,
+    name_snapshot VARCHAR(200) NOT NULL,
+    price_snapshot INT UNSIGNED NOT NULL,
+    qty INT UNSIGNED NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
     CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL

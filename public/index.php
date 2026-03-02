@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Controllers\ApiController;
+use App\Repositories\OrderRepository;
 use App\Repositories\ProductRepository;
 use App\Repositories\FlyerRepository;
 use App\Repositories\SettingRepository;
@@ -41,7 +42,8 @@ if (str_starts_with($path, '/api/')) {
         new ProductRepository(db()),
         new SlideRepository(db()),
         new SettingRepository(db()),
-        new FlyerRepository(db())
+        new FlyerRepository(db()),
+        new OrderRepository(db())
     );
 
     if ($method === 'GET' && $path === '/api/bootstrap') {
@@ -61,6 +63,22 @@ if (str_starts_with($path, '/api/')) {
 
     if ($method === 'DELETE' && preg_match('#^/api/products/(\d+)$#', $path, $matches)) {
         $controller->deleteProduct((int) $matches[1]);
+        return;
+    }
+
+
+    if ($method === 'GET' && $path === '/api/orders') {
+        $controller->getOrders();
+        return;
+    }
+
+    if ($method === 'POST' && $path === '/api/orders') {
+        $controller->createOrder();
+        return;
+    }
+
+    if ($method === 'PATCH' && preg_match('#^/api/orders/(\d+)/status$#', $path, $matches)) {
+        $controller->updateOrderStatus((int) $matches[1]);
         return;
     }
 
