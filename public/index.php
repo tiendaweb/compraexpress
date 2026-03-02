@@ -66,6 +66,10 @@ if (str_starts_with($path, '/api/')) {
         return;
     }
 
+    if ($method === 'PATCH' && preg_match('#^/api/products/(\d+)/status$#', $path, $matches)) {
+        $controller->updateProductStatus((int) $matches[1]);
+        return;
+    }
 
     if ($method === 'GET' && $path === '/api/orders') {
         $controller->getOrders();

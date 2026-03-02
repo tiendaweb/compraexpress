@@ -18,6 +18,8 @@ class ProductRepository
 
         if ($status === 'active') {
             $sql .= ' WHERE is_active = 1';
+        } elseif ($status === 'archived') {
+            $sql .= ' WHERE is_active = 0';
         }
 
         $sql .= ' ORDER BY id DESC';
@@ -51,5 +53,24 @@ class ProductRepository
         $stmt->execute([':id' => $id]);
 
         return $stmt->rowCount() > 0;
+    }
+
+    public function updateStatus(int $id, bool $isActive): ?array
+    {
+        $stmt = $this->pdo->prepare('UPDATE products SET is_active = :is_active WHERE id = :id');
+        $stmt->execute([
+            ':is_active' => $isActive ? 1 : 0,
+            ':id' => $id,
+        ]);
+
+        if ($stmt->rowCount() === 0) {
+            return null;
+        }
+
+        $findStmt = $this->pdo->prepare('SELECT id, name, price, img, is_active FROM products WHERE id = :id LIMIT 1');
+        $findStmt->execute([':id' => $id]);
+        $product = $findStmt->fetch();
+
+        return $product === false ? null : $product;
     }
 }
