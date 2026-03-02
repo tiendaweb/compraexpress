@@ -170,21 +170,56 @@ class ApiController
 
     public function getOrders(): void
     {
-        $this->json($this->orders->allActiveWithItems());
+        $archived = isset($_GET['archived']) && (int) $_GET['archived'] === 1;
+        $this->json($archived ? $this->orders->allArchivedWithItems() : $this->orders->allActiveWithItems());
+    }
+
+
+
+    public function updateProductStatus(int $id): void
+    {
+        $data = json_decode((string) file_get_contents('php://input'), true);
+        $isActive = isset($data['is_active']) ? (int) $data['is_active'] : null;
+
+        if ($isActive !== 0 && $isActive !== 1) {
+            $this->json(['error' => 'Estado de producto inválido.'], 422);
+            return;
+        }
+
+        $product = $this->products->updateStatus($id, $isActive === 1);
+        if ($product === null) {
+            $this->json(['error' => 'Producto no encontrado.'], 404);
+            return;
+        }
+
+        $this->json($product);
     }
 
     public function updateOrderStatus(int $id): void
     {
         $data = json_decode((string) file_get_contents('php://input'), true);
         $status = trim((string) ($data['status'] ?? ''));
+        $archiveFlag = isset($data['archived']) ? (int) $data['archived'] : 0;
         $allowedStatuses = ['nuevo', 'en_preparacion', 'en_viaje', 'entregado'];
+
+        if ($archiveFlag === 1) {
+            $order = $this->orders->archive($id);
+            if ($order === null) {
+                $this->json(['error' => 'Pedido no encontrado.'], 404);
+                return;
+            }
+
+            $this->json($order);
+            return;
+        }
 
         if (!in_array($status, $allowedStatuses, true)) {
             $this->json(['error' => 'Estado inválido.'], 422);
             return;
         }
 
-        $order = $this->orders->updateStatus($id, $status);
+        $changedBy = trim((string) ($data['changed_by'] ?? 'admin'));
+        $order = $this->orders->updateStatus($id, $status, $changedBy);
         if ($order === null) {
             $this->json(['error' => 'Pedido no encontrado.'], 404);
             return;

@@ -132,22 +132,59 @@ function showTab(tabName) {
 }
 
 function renderAdminList() {
-    const list = document.getElementById('admin-product-list');
-    list.innerHTML = '';
+    const activeList = document.getElementById('admin-product-list-active');
+    const archivedList = document.getElementById('admin-product-list-archived');
+    if (!activeList || !archivedList) return;
+
+    activeList.innerHTML = '';
+    archivedList.innerHTML = '';
+
     storeState.products.forEach(p => {
-        list.innerHTML += `<div class="flex items-center gap-3 bg-baby-cream p-3 rounded-xl border border-baby-blue-light hover:border-baby-blue"><img src="${p.img}" class="w-12 h-12 object-contain bg-white rounded-lg"><div class="flex-1"><p class="font-bold text-sm text-baby-text">${p.name}</p><p class="text-xs text-baby-pink font-bold">${storeState.config.currency}${Number(p.price).toLocaleString()}</p></div><button onclick="adminDeleteProduct(${p.id})" class="text-red-400 p-2 hover:text-red-600 active:scale-95"><i class="fa-solid fa-trash-can"></i></button></div>`;
+        const target = Number(p.is_active) === 1 ? activeList : archivedList;
+        target.innerHTML += `<div draggable="true" ondragstart="onProductDragStart(event)" data-product-id="${p.id}" class="flex items-center gap-3 bg-white p-3 rounded-xl border border-baby-blue-light hover:border-baby-blue cursor-move"><img src="${p.img}" class="w-12 h-12 object-contain bg-baby-cream rounded-lg"><div class="flex-1"><p class="font-bold text-sm text-baby-text">${p.name}</p><p class="text-xs text-baby-pink font-bold">${storeState.config.currency}${Number(p.price).toLocaleString()}</p></div><button onclick="adminDeleteProduct(${p.id})" class="text-red-400 p-2 hover:text-red-600 active:scale-95"><i class="fa-solid fa-trash-can"></i></button></div>`;
     });
 
+    setupProductDnD();
     renderOrdersKanban();
 }
+
 async function adminAddProduct() { const nameInput = document.getElementById('admin-prod-name'); const priceInput = document.getElementById('admin-prod-price'); const imgInput = document.getElementById('admin-prod-img'); try { await fetchJSON('/api/products', { method: 'POST', body: JSON.stringify({ name: nameInput.value, price: parseInt(priceInput.value, 10), img: imgInput.value }) }); nameInput.value = ''; priceInput.value = ''; imgInput.value = ''; await initStore(); renderAdminList(); alert('¡Producto añadido con éxito!'); } catch (error) { alert(error.message); } }
 async function adminDeleteProduct(id) { if (!confirm('¿Estás seguro de eliminar este producto?')) return; try { await fetchJSON(`/api/products/${id}`, { method: 'DELETE' }); cart = cart.filter(item => Number(item.id) !== Number(id)); await initStore(); renderAdminList(); } catch (error) { alert(error.message); } }
 
+function onProductDragStart(event) {
+    event.dataTransfer.setData('text/product-id', event.currentTarget.dataset.productId);
+}
 
+function setupProductDnD() {
+    document.querySelectorAll('[data-product-status]').forEach(column => {
+        column.ondragover = event => event.preventDefault();
+        column.ondrop = async event => {
+            event.preventDefault();
+            const productId = event.dataTransfer.getData('text/product-id');
+            const isActive = Number(column.dataset.productStatus);
+            if (!productId || Number.isNaN(isActive)) return;
+
+            try {
+                await fetchJSON(`/api/products/${productId}/status`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ is_active: isActive })
+                });
+                storeState.products = await fetchJSON('/api/products');
+                renderAdminList();
+            } catch (error) {
+                alert(error.message);
+            }
+        };
+    });
+}
 
 async function loadOrders() {
     try {
-        storeState.orders = await fetchJSON('/api/orders');
+        const [active, archived] = await Promise.all([
+            fetchJSON('/api/orders'),
+            fetchJSON('/api/orders?archived=1')
+        ]);
+        storeState.orders = [...active, ...archived];
     } catch (error) {
         console.error(error);
         storeState.orders = [];
@@ -164,33 +201,56 @@ function orderItemsSummary(items) {
     return items.map(item => `${item.qty}x ${item.name_snapshot}`).join(', ');
 }
 
-async function updateOrderStatus(orderId, status) {
-    try {
-        await fetchJSON(`/api/orders/${orderId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
-        await loadOrders();
-        renderOrdersKanban();
-    } catch (error) {
-        alert(error.message);
-    }
+function onOrderDragStart(event) {
+    event.dataTransfer.setData('text/order-id', event.currentTarget.dataset.orderId);
+}
+
+async function moveOrderToColumn(orderId, destinationStatus) {
+    const body = destinationStatus === 'archived' ? { archived: 1 } : { status: destinationStatus };
+    await fetchJSON(`/api/orders/${orderId}/status`, { method: 'PATCH', body: JSON.stringify(body) });
+    await loadOrders();
+    renderOrdersKanban();
+}
+
+function setupOrderDnD() {
+    document.querySelectorAll('#orders-kanban [data-status]').forEach(column => {
+        column.ondragover = event => event.preventDefault();
+        column.ondrop = async event => {
+            event.preventDefault();
+            const orderId = event.dataTransfer.getData('text/order-id');
+            const destinationStatus = column.dataset.status;
+            if (!orderId || !destinationStatus) return;
+
+            try {
+                await moveOrderToColumn(orderId, destinationStatus);
+            } catch (error) {
+                alert(error.message);
+            }
+        };
+    });
 }
 
 function renderOrdersKanban() {
     const statuses = ['nuevo', 'en_preparacion', 'en_viaje', 'entregado'];
-    statuses.forEach(status => {
+    const columns = [...statuses, 'archived'];
+
+    columns.forEach(status => {
         const column = document.getElementById(`orders-col-${status}`);
         if (!column) return;
         column.innerHTML = '';
 
         storeState.orders
-            .filter(order => order.status === status)
+            .filter(order => status === 'archived' ? Number(order.archived) === 1 : Number(order.archived) === 0 && order.status === status)
             .forEach(order => {
-                const nextStatuses = statuses.filter(candidate => candidate !== order.status)
-                    .map(candidate => `<button onclick="updateOrderStatus(${order.id}, '${candidate}')" class="px-2 py-1 text-xs rounded-full bg-white border border-baby-blue-light hover:border-baby-blue">${candidate.replace('_', ' ')}</button>`)
-                    .join('');
+                const actions = Number(order.archived) === 1
+                    ? ''
+                    : `<button onclick="moveOrderToColumn(${order.id}, 'archived')" class="px-2 py-1 text-xs rounded-full bg-white border border-baby-blue-light hover:border-baby-blue">Archivar</button>`;
 
-                column.innerHTML += `<div class="bg-white rounded-xl p-3 border border-baby-blue-light shadow-sm space-y-2"><div class="text-xs text-gray-500">#${order.id} · ${formatOrderTime(order.created_at)}</div><div class="font-bold text-sm">${order.customer_name || 'Cliente sin nombre'}</div><div class="text-xs text-gray-600">${orderItemsSummary(order.items)}</div><div class="text-sm font-bold text-baby-pink">${storeState.config.currency}${Number(order.total).toLocaleString()}</div><a href="https://wa.me/${storeState.config.whatsappNumber}?text=${encodeURIComponent(order.whatsapp_payload)}" target="_blank" class="inline-flex items-center gap-2 text-xs bg-baby-green px-2 py-1 rounded-full"><i class="fa-brands fa-whatsapp"></i> Abrir WhatsApp</a><div class="flex flex-wrap gap-1">${nextStatuses}</div></div>`;
+                column.innerHTML += `<div draggable="${Number(order.archived) === 0}" ondragstart="onOrderDragStart(event)" data-order-id="${order.id}" class="bg-white rounded-xl p-3 border border-baby-blue-light shadow-sm space-y-2 ${Number(order.archived) === 0 ? 'cursor-move' : ''}"><div class="text-xs text-gray-500">#${order.id} · ${formatOrderTime(order.created_at)}</div><div class="font-bold text-sm">${order.customer_name || 'Cliente sin nombre'}</div><div class="text-xs text-gray-600">${orderItemsSummary(order.items)}</div><div class="text-sm font-bold text-baby-pink">${storeState.config.currency}${Number(order.total).toLocaleString()}</div><a href="https://wa.me/${storeState.config.whatsappNumber}?text=${encodeURIComponent(order.whatsapp_payload)}" target="_blank" class="inline-flex items-center gap-2 text-xs bg-baby-green px-2 py-1 rounded-full"><i class="fa-brands fa-whatsapp"></i> Abrir WhatsApp</a><div class="flex flex-wrap gap-1">${actions}</div></div>`;
             });
     });
+
+    setupOrderDnD();
 }
 
 async function initFlyers() {

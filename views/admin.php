@@ -16,29 +16,43 @@
         </div>
 
         <div class="md:col-span-2 bg-white p-6 rounded-3xl shadow-lg border-2 border-baby-blue-light">
-            <h3 class="text-xl font-bold text-baby-text mb-4"><i class="fa-solid fa-list text-baby-blue"></i> Productos Actuales</h3>
-            <div id="admin-product-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-2"></div>
+            <h3 class="text-xl font-bold text-baby-text mb-4"><i class="fa-solid fa-list text-baby-blue"></i> Gestión de Productos</h3>
+            <div class="grid md:grid-cols-2 gap-4" id="products-kanban">
+                <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
+                    <h4 class="font-bold mb-3">Activos</h4>
+                    <div id="admin-product-list-active" data-product-status="1" class="space-y-3 min-h-[180px]"></div>
+                </div>
+                <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
+                    <h4 class="font-bold mb-3">Archivados</h4>
+                    <div id="admin-product-list-archived" data-product-status="0" class="space-y-3 min-h-[180px]"></div>
+                </div>
+            </div>
         </div>
     </div>
 
     <div class="bg-white p-6 rounded-3xl shadow-lg border-2 border-baby-blue-light">
         <h3 class="text-xl font-bold text-baby-text mb-4"><i class="fa-solid fa-box text-baby-pink"></i> Pedidos</h3>
-        <div class="grid lg:grid-cols-4 gap-4" id="orders-kanban">
+        <div class="grid lg:grid-cols-5 gap-4" id="orders-kanban">
             <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
                 <h4 class="font-bold mb-3">Nuevo</h4>
-                <div id="orders-col-nuevo" class="space-y-3"></div>
+                <div id="orders-col-nuevo" data-status="nuevo" class="space-y-3 min-h-[220px]"></div>
             </div>
             <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
                 <h4 class="font-bold mb-3">En preparación</h4>
-                <div id="orders-col-en_preparacion" class="space-y-3"></div>
+                <div id="orders-col-en_preparacion" data-status="en_preparacion" class="space-y-3 min-h-[220px]"></div>
             </div>
             <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
                 <h4 class="font-bold mb-3">En viaje</h4>
-                <div id="orders-col-en_viaje" class="space-y-3"></div>
+                <div id="orders-col-en_viaje" data-status="en_viaje" class="space-y-3 min-h-[220px]"></div>
             </div>
             <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
                 <h4 class="font-bold mb-3">Entregado</h4>
-                <div id="orders-col-entregado" class="space-y-3"></div>
+                <div id="orders-col-entregado" data-status="entregado" class="space-y-3 min-h-[220px]"></div>
+            </div>
+
+            <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
+                <h4 class="font-bold mb-3">Archivados</h4>
+                <div id="orders-col-archived" data-status="archived" class="space-y-3 min-h-[220px]"></div>
             </div>
         </div>
     </div>

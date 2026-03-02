@@ -53,9 +53,11 @@ class OrderRepository
         }
     }
 
-    public function allActiveWithItems(): array
+    public function allWithItems(?bool $archived = false): array
     {
-        $stmt = $this->pdo->query('SELECT id, customer_name, whatsapp_payload, total, status, archived, created_at FROM orders WHERE archived = 0 ORDER BY created_at DESC');
+        $archivedValue = $archived ? 1 : 0;
+        $stmt = $this->pdo->prepare('SELECT id, customer_name, whatsapp_payload, total, status, archived, created_at FROM orders WHERE archived = :archived ORDER BY created_at DESC');
+        $stmt->execute([':archived' => $archivedValue]);
         $orders = $stmt->fetchAll();
 
         if ($orders === []) {
@@ -99,19 +101,61 @@ class OrderRepository
         }, $orders);
     }
 
-    public function updateStatus(int $id, string $status): ?array
+
+    public function allActiveWithItems(): array
     {
+        return $this->allWithItems(false);
+    }
+
+    public function allArchivedWithItems(): array
+    {
+        return $this->allWithItems(true);
+    }
+
+    public function updateStatus(int $id, string $status, string $changedBy = 'system'): ?array
+    {
+        $current = $this->findWithItems($id);
+        if ($current === null) {
+            return null;
+        }
+
         $stmt = $this->pdo->prepare('UPDATE orders SET status = :status WHERE id = :id');
         $stmt->execute([
             ':status' => $status,
             ':id' => $id,
         ]);
 
+        if ((string) $current['status'] !== $status) {
+            $this->insertStatusHistory($id, (string) $current['status'], $status, $changedBy);
+        }
+
+        return $this->findWithItems($id);
+    }
+
+    public function archive(int $id): ?array
+    {
+        $stmt = $this->pdo->prepare('UPDATE orders SET archived = 1 WHERE id = :id');
+        $stmt->execute([':id' => $id]);
+
         if ($stmt->rowCount() === 0) {
             return null;
         }
 
         return $this->findWithItems($id);
+    }
+
+    private function insertStatusHistory(int $orderId, string $fromStatus, string $toStatus, string $changedBy): void
+    {
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO order_status_history (order_id, changed_by, previous_status, new_status) VALUES (:order_id, :changed_by, :previous_status, :new_status)'
+        );
+
+        $stmt->execute([
+            ':order_id' => $orderId,
+            ':changed_by' => $changedBy,
+            ':previous_status' => $fromStatus,
+            ':new_status' => $toStatus,
+        ]);
     }
 
     private function findWithItems(int $id): ?array
