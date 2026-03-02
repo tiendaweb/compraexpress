@@ -89,6 +89,22 @@ if (str_starts_with($path, '/api/')) {
         return;
     }
 
+
+    if ($method === 'GET' && $path === '/api/users') {
+        $controller->getUsers();
+        return;
+    }
+
+    if ($method === 'POST' && $path === '/api/users') {
+        $controller->createUser();
+        return;
+    }
+
+    if ($method === 'PATCH' && preg_match('#^/api/users/(\d+)$#', $path, $matches)) {
+        $controller->updateUser((int) $matches[1]);
+        return;
+    }
+
     if ($method === 'GET' && $path === '/api/products') {
         $controller->getProducts();
         return;
@@ -309,6 +325,9 @@ function appUrl(string $basePath, string $path): string
             <button onclick="showTab('flyers')" id="tab-flyers" class="flex-1 py-3 text-center text-gray-500 hover:text-baby-text transition items-center justify-center gap-2 flex">
                 <i class="fa-solid fa-image"></i> Flyers
             </button>
+            <button onclick="showTab('users')" id="tab-users" class="hidden flex-1 py-3 text-center text-gray-500 hover:text-baby-text transition items-center justify-center gap-2 flex">
+                <i class="fa-solid fa-users"></i> Usuarios
+            </button>
         </div>
     </nav>
 </header>
@@ -317,6 +336,7 @@ function appUrl(string $basePath, string $path): string
 <?php require __DIR__ . '/../views/admin.php'; ?>
 <?php require __DIR__ . '/../views/orders.php'; ?>
 <?php require __DIR__ . '/../views/flyers.php'; ?>
+<?php require __DIR__ . '/../views/users.php'; ?>
 
 <div id="cart-overlay" onclick="toggleCart()" class="fixed inset-0 bg-black/50 z-50 hidden"></div>
 <div id="cart-drawer" class="fixed inset-y-0 right-0 w-full max-w-md bg-baby-cream shadow-2xl z-[60] transform translate-x-full transition-transform duration-300 flex flex-col border-l-4 border-baby-blue">

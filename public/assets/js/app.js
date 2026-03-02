@@ -11,7 +11,9 @@ const storeState = {
     flyers: [],
     orders: [],
     currentUser: null,
-    currentRole: 'guest'
+    currentRole: 'guest',
+    users: [],
+    editingUserId: null
 };
 
 const flyerState = {
@@ -183,6 +185,7 @@ function applyRoleUI() {
     const adminTab = document.getElementById('tab-admin');
     const ordersTab = document.getElementById('tab-orders');
     const flyersTab = document.getElementById('tab-flyers');
+    const usersTab = document.getElementById('tab-users');
     const ordersSection = document.getElementById('admin-orders-section');
     const loginBtn = document.getElementById('auth-open-login');
     const logoutBtn = document.getElementById('auth-logout');
@@ -194,6 +197,7 @@ function applyRoleUI() {
     if (adminTab) adminTab.classList.toggle('hidden', !canManageProducts);
     if (ordersTab) ordersTab.classList.toggle('hidden', !isAdmin);
     if (flyersTab) flyersTab.classList.toggle('hidden', !isAdmin);
+    if (usersTab) usersTab.classList.toggle('hidden', !isAdmin);
     if (ordersSection) ordersSection.classList.toggle('hidden', !isAdmin);
 
     if (badge) {
@@ -228,8 +232,12 @@ async function initStore() {
 
     if (hasRole('admin')) {
         await loadOrders();
+        await loadUsers();
     } else {
         storeState.orders = [];
+        storeState.users = [];
+        resetUserForm();
+        renderUsersTable();
     }
 
     renderSlider();
@@ -355,6 +363,7 @@ function showTab(tabName) {
     if (tabName === 'admin' && !hasRole('admin', 'gestion')) return;
     if (tabName === 'orders' && !hasRole('admin')) return;
     if (tabName === 'flyers' && !hasRole('admin')) return;
+    if (tabName === 'users' && !hasRole('admin')) return;
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.querySelectorAll('nav button').forEach(el => el.classList.remove('active-tab'));
 
@@ -363,12 +372,14 @@ function showTab(tabName) {
         admin: 'section-admin',
         orders: 'section-orders',
         flyers: 'section-flyers',
+        users: 'section-users',
     };
     const tabMap = {
         store: 'tab-store',
         admin: 'tab-admin',
         orders: 'tab-orders',
         flyers: 'tab-flyers',
+        users: 'tab-users',
     };
 
     const sectionId = sectionMap[tabName] || 'section-store';
@@ -382,7 +393,9 @@ function showTab(tabName) {
         renderFlyerBuilder();
         showFlyerSubTab(flyerState.subTab || 'editor');
     }
+    if (tabName === 'users') renderUsersTable();
 }
+
 
 function renderAdminList() {
     const activeList = document.getElementById('admin-product-list-active');
@@ -1134,6 +1147,112 @@ function renderFlyerExports(items, errorMessage = '') {
     }).join('');
 }
 
+
+
+async function loadUsers() {
+    if (!hasRole('admin')) {
+        storeState.users = [];
+        return;
+    }
+
+    try {
+        storeState.users = await fetchJSON('/api/users');
+    } catch (error) {
+        console.error(error);
+        storeState.users = [];
+    }
+
+    renderUsersTable();
+}
+
+function renderUsersTable() {
+    const tbody = document.getElementById('users-table-body');
+    if (!tbody) return;
+
+    if (!storeState.users.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-gray-500">No hay usuarios cargados.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = storeState.users.map(user => `
+        <tr class="border-b border-baby-blue-light">
+            <td class="py-2 pr-3">${user.name}</td>
+            <td class="py-2 pr-3">${user.email}</td>
+            <td class="py-2 pr-3"><span class="px-2 py-1 rounded-full bg-baby-blue-light text-xs font-semibold">${user.role}</span></td>
+            <td class="py-2 text-right">
+                <button onclick="editUser(${user.id})" class="px-3 py-1 text-xs rounded-full bg-baby-pink text-white">Editar</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function editUser(userId) {
+    const user = storeState.users.find(item => Number(item.id) === Number(userId));
+    if (!user) return;
+
+    storeState.editingUserId = Number(user.id);
+    document.getElementById('users-form-title').textContent = `Editar usuario #${user.id}`;
+    document.getElementById('user-form-name').value = user.name || '';
+    document.getElementById('user-form-email').value = user.email || '';
+    document.getElementById('user-form-role').value = user.role || 'gestion';
+    document.getElementById('user-form-password').value = '';
+    document.getElementById('user-form-cancel').classList.remove('hidden');
+}
+
+function resetUserForm() {
+    storeState.editingUserId = null;
+    const title = document.getElementById('users-form-title');
+    const name = document.getElementById('user-form-name');
+    const email = document.getElementById('user-form-email');
+    const role = document.getElementById('user-form-role');
+    const password = document.getElementById('user-form-password');
+    const cancel = document.getElementById('user-form-cancel');
+
+    if (title) title.textContent = 'Alta de usuario';
+    if (name) name.value = '';
+    if (email) email.value = '';
+    if (role) role.value = 'gestion';
+    if (password) password.value = '';
+    if (cancel) cancel.classList.add('hidden');
+}
+
+async function submitUserForm() {
+    const name = document.getElementById('user-form-name').value.trim();
+    const email = document.getElementById('user-form-email').value.trim();
+    const role = document.getElementById('user-form-role').value;
+    const password = document.getElementById('user-form-password').value;
+
+    if (!name || !email || !role) {
+        alert('Nombre, email y rol son obligatorios.');
+        return;
+    }
+
+    const payload = { name, email, role };
+    const isEditing = Number.isInteger(storeState.editingUserId) && storeState.editingUserId > 0;
+
+    if (!isEditing || password.trim() !== '') {
+        payload.password = password;
+    }
+
+    try {
+        if (isEditing) {
+            await fetchJSON(`/api/users/${storeState.editingUserId}`, {
+                method: 'PATCH',
+                body: JSON.stringify(payload),
+            });
+        } else {
+            await fetchJSON('/api/users', {
+                method: 'POST',
+                body: JSON.stringify(payload),
+            });
+        }
+
+        await loadUsers();
+        resetUserForm();
+    } catch (error) {
+        alert(error.message);
+    }
+}
 
 const imageSourceSelect = document.getElementById('admin-prod-image-source');
 if (imageSourceSelect) {
