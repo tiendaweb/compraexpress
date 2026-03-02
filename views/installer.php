@@ -17,7 +17,7 @@
             </div>
         <?php endif; ?>
 
-        <form method="POST" action="/install" class="mt-6 space-y-6">
+        <form method="POST" action="<?= htmlspecialchars($installAction ?? '/install', ENT_QUOTES, 'UTF-8') ?>" class="mt-6 space-y-6">
             <section>
                 <h2 class="font-semibold text-slate-700 mb-3">Conexión a base de datos</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

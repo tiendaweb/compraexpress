@@ -19,9 +19,16 @@ const flyerState = {
 
 let cart = [];
 
+const appBasePath = (window.APP_BASE_PATH || '').replace(/\/$/, '');
+
+function appUrl(path) {
+    if (!path.startsWith('/')) return path;
+    return `${appBasePath}${path}` || '/';
+}
+
 async function fetchJSON(url, options = {}) {
     const headers = options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' };
-    const response = await fetch(url, {
+    const response = await fetch(appUrl(url), {
         headers,
         ...options
     });

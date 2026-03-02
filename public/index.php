@@ -14,24 +14,28 @@ $root = dirname(__DIR__);
 $configPath = $root . '/config/config.php';
 $migrationPath = $root . '/database/migrations/001_initial_schema.sql';
 
-$path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$scriptDir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
+$basePath = $scriptDir === '/' || $scriptDir === '.' ? '' : rtrim($scriptDir, '/');
+$path = normalizePath($requestPath, $basePath);
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 $hasValidConfig = isValidInstallation($configPath);
 
 if ($hasValidConfig && $path === '/install') {
-    header('Location: /');
+    header('Location: ' . appUrl($basePath, '/'));
     exit;
 }
 
 if (!$hasValidConfig) {
     if ($method === 'POST' && $path === '/install') {
-        handleInstall($configPath, $migrationPath);
+        handleInstall($configPath, $migrationPath, $basePath);
         exit;
     }
 
     $old = [];
     $installError = null;
+    $installAction = appUrl($basePath, '/install');
     require $root . '/views/installer.php';
     exit;
 }
@@ -164,7 +168,7 @@ function isValidInstallation(string $configPath): bool
     return true;
 }
 
-function handleInstall(string $configPath, string $migrationPath): void
+function handleInstall(string $configPath, string $migrationPath, string $basePath): void
 {
     global $root;
 
@@ -183,6 +187,7 @@ function handleInstall(string $configPath, string $migrationPath): void
 
     if ($old['admin_name'] === '' || !filter_var($old['admin_email'], FILTER_VALIDATE_EMAIL) || strlen($adminPassword) < 8) {
         $installError = 'Completa los datos del administrador (email válido y contraseña de al menos 8 caracteres).';
+        $installAction = appUrl($basePath, '/install');
         require $root . '/views/installer.php';
         return;
     }
@@ -230,11 +235,35 @@ function handleInstall(string $configPath, string $migrationPath): void
         }
 
         $installError = 'No se pudo completar la instalación: ' . $e->getMessage();
+        $installAction = appUrl($basePath, '/install');
         require $root . '/views/installer.php';
         return;
     }
 
-    header('Location: /');
+    header('Location: ' . appUrl($basePath, '/'));
+}
+
+function normalizePath(string $requestPath, string $basePath): string
+{
+    if ($basePath === '') {
+        return $requestPath === '' ? '/' : $requestPath;
+    }
+
+    if ($requestPath === $basePath) {
+        return '/';
+    }
+
+    if (str_starts_with($requestPath, $basePath . '/')) {
+        return substr($requestPath, strlen($basePath));
+    }
+
+    return $requestPath === '' ? '/' : $requestPath;
+}
+
+function appUrl(string $basePath, string $path): string
+{
+    $normalizedPath = '/' . ltrim($path, '/');
+    return ($basePath === '' ? '' : $basePath) . ($normalizedPath === '//' ? '/' : $normalizedPath);
 }
 
 function createPdo(array $db): PDO
@@ -356,6 +385,9 @@ function writeConfigFile(string $configPath, array $db, string $appName): void
     </div>
 </div>
 
-<script src="/assets/js/app.js"></script>
+<script>
+    window.APP_BASE_PATH = <?= json_encode($basePath, JSON_UNESCAPED_SLASHES) ?>;
+</script>
+<script src="<?= htmlspecialchars(appUrl($basePath, '/assets/js/app.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 </body>
 </html>
