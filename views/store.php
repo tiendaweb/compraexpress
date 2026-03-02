@@ -15,4 +15,18 @@
         </div>
         <div id="product-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
     </main>
+
+    <section class="container mx-auto px-4 pb-12">
+        <div class="bg-white rounded-3xl border-2 border-baby-blue-light p-6 grid md:grid-cols-2 gap-6">
+            <div>
+                <h3 class="text-xl font-bold mb-3"><i class="fa-solid fa-address-card text-baby-pink"></i> Contacto</h3>
+                <p id="store-contact-address" class="text-sm text-gray-700">Dirección no configurada.</p>
+                <div id="store-social-links" class="mt-4 flex flex-wrap gap-2"></div>
+            </div>
+            <div>
+                <iframe id="store-google-maps" class="w-full h-56 rounded-2xl border hidden" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                <p id="store-google-maps-empty" class="text-sm text-gray-500">Mapa no configurado.</p>
+            </div>
+        </div>
+    </section>
 </div>

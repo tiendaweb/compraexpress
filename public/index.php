@@ -160,8 +160,28 @@ if (str_starts_with($path, '/api/')) {
         return;
     }
 
+    if ($method === 'POST' && $path === '/api/slides') {
+        $controller->createSlide();
+        return;
+    }
+
+    if ($method === 'PATCH' && preg_match('#^/api/slides/(\d+)$#', $path, $matches)) {
+        $controller->updateSlide((int) $matches[1]);
+        return;
+    }
+
+    if ($method === 'DELETE' && preg_match('#^/api/slides/(\d+)$#', $path, $matches)) {
+        $controller->deleteSlide((int) $matches[1]);
+        return;
+    }
+
     if ($method === 'GET' && $path === '/api/settings') {
         $controller->getSettings();
+        return;
+    }
+
+    if ($method === 'PATCH' && $path === '/api/settings') {
+        $controller->updateSettings();
         return;
     }
 
@@ -265,7 +285,7 @@ function appUrl(string $basePath, string $path): string
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pañalería y Algo Más | Tienda Online</title>
+    <title id="app-browser-title">Pañalería y Algo Más | Tienda Online</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script>
@@ -295,8 +315,9 @@ function appUrl(string $basePath, string $path): string
 <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-sm shadow-sm border-b-2 border-baby-blue-light">
     <div class="container mx-auto px-4 py-3 flex justify-between items-center">
         <h1 class="text-2xl font-bold text-baby-text flex items-center gap-2">
-            <i class="fa-solid fa-baby-carriage text-baby-pink"></i>
-            <span>Pañalería <span class="text-baby-blue font-light">& Más</span></span>
+            <img id="app-logo" src="" alt="Logo" class="hidden h-10 w-10 rounded-full object-cover">
+            <i id="app-icon" class="fa-solid fa-baby-carriage text-baby-pink"></i>
+            <span id="app-name">Pañalería <span class="text-baby-blue font-light">& Más</span></span>
         </h1>
 
         <div class="flex items-center gap-3">
@@ -328,6 +349,9 @@ function appUrl(string $basePath, string $path): string
             <button onclick="showTab('users')" id="tab-users" class="hidden flex-1 py-3 text-center text-gray-500 hover:text-baby-text transition items-center justify-center gap-2 flex">
                 <i class="fa-solid fa-users"></i> Usuarios
             </button>
+            <button onclick="showTab('settings')" id="tab-settings" class="hidden flex-1 py-3 text-center text-gray-500 hover:text-baby-text transition items-center justify-center gap-2 flex">
+                <i class="fa-solid fa-sliders"></i> Ajustes
+            </button>
         </div>
     </nav>
 </header>
@@ -337,6 +361,7 @@ function appUrl(string $basePath, string $path): string
 <?php require __DIR__ . '/../views/orders.php'; ?>
 <?php require __DIR__ . '/../views/flyers.php'; ?>
 <?php require __DIR__ . '/../views/users.php'; ?>
+<?php require __DIR__ . '/../views/settings.php'; ?>
 
 <div id="cart-overlay" onclick="toggleCart()" class="fixed inset-0 bg-black/50 z-50 hidden"></div>
 <div id="cart-drawer" class="fixed inset-y-0 right-0 w-full max-w-md bg-baby-cream shadow-2xl z-[60] transform translate-x-full transition-transform duration-300 flex flex-col border-l-4 border-baby-blue">
