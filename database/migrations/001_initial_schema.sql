@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS media (
     file_path VARCHAR(500) NOT NULL,
     mime_type VARCHAR(120) NOT NULL,
     file_size INT UNSIGNED NOT NULL,
+    uploaded_by VARCHAR(160) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

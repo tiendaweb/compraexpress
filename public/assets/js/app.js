@@ -20,8 +20,9 @@ const flyerState = {
 let cart = [];
 
 async function fetchJSON(url, options = {}) {
+    const headers = options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' };
     const response = await fetch(url, {
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         ...options
     });
 
@@ -148,7 +149,69 @@ function renderAdminList() {
     renderOrdersKanban();
 }
 
-async function adminAddProduct() { const nameInput = document.getElementById('admin-prod-name'); const priceInput = document.getElementById('admin-prod-price'); const imgInput = document.getElementById('admin-prod-img'); try { await fetchJSON('/api/products', { method: 'POST', body: JSON.stringify({ name: nameInput.value, price: parseInt(priceInput.value, 10), img: imgInput.value }) }); nameInput.value = ''; priceInput.value = ''; imgInput.value = ''; await initStore(); renderAdminList(); alert('¡Producto añadido con éxito!'); } catch (error) { alert(error.message); } }
+function toggleAdminImageSource() {
+    const source = document.getElementById('admin-prod-image-source');
+    const urlInput = document.getElementById('admin-prod-img-url');
+    const fileInput = document.getElementById('admin-prod-img-file');
+    if (!source || !urlInput || !fileInput) return;
+
+    const useUpload = source.value === 'upload';
+    urlInput.classList.toggle('hidden', useUpload);
+    fileInput.classList.toggle('hidden', !useUpload);
+}
+
+async function uploadAdminProductImage(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('uploaded_by', 'admin');
+
+    const response = await fetchJSON('/api/media/upload', {
+        method: 'POST',
+        body: formData
+    });
+
+    return response.path;
+}
+
+async function adminAddProduct() {
+    const nameInput = document.getElementById('admin-prod-name');
+    const priceInput = document.getElementById('admin-prod-price');
+    const sourceSelect = document.getElementById('admin-prod-image-source');
+    const imageUrlInput = document.getElementById('admin-prod-img-url');
+    const imageFileInput = document.getElementById('admin-prod-img-file');
+
+    try {
+        let imgPath = imageUrlInput.value.trim();
+
+        if (sourceSelect.value === 'upload') {
+            const file = imageFileInput.files[0];
+            if (!file) throw new Error('Selecciona una imagen para subir.');
+            imgPath = await uploadAdminProductImage(file);
+        }
+
+        await fetchJSON('/api/products', {
+            method: 'POST',
+            body: JSON.stringify({
+                name: nameInput.value,
+                price: parseInt(priceInput.value, 10),
+                img: imgPath
+            })
+        });
+
+        nameInput.value = '';
+        priceInput.value = '';
+        imageUrlInput.value = '';
+        imageFileInput.value = '';
+        sourceSelect.value = 'url';
+        toggleAdminImageSource();
+
+        await initStore();
+        renderAdminList();
+        alert('¡Producto añadido con éxito!');
+    } catch (error) {
+        alert(error.message);
+    }
+}
 async function adminDeleteProduct(id) { if (!confirm('¿Estás seguro de eliminar este producto?')) return; try { await fetchJSON(`/api/products/${id}`, { method: 'DELETE' }); cart = cart.filter(item => Number(item.id) !== Number(id)); await initStore(); renderAdminList(); } catch (error) { alert(error.message); } }
 
 function onProductDragStart(event) {
@@ -364,6 +427,13 @@ async function flyerSave() {
     localStorage.setItem('flyerDraftCache', JSON.stringify(flyerState));
     await initFlyers();
     alert('Flyer guardado en base de datos.');
+}
+
+
+const imageSourceSelect = document.getElementById('admin-prod-image-source');
+if (imageSourceSelect) {
+    imageSourceSelect.addEventListener('change', toggleAdminImageSource);
+    toggleAdminImageSource();
 }
 
 initStore().catch(error => {

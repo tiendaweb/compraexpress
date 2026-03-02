@@ -6,6 +6,7 @@ use App\Controllers\ApiController;
 use App\Repositories\OrderRepository;
 use App\Repositories\ProductRepository;
 use App\Repositories\FlyerRepository;
+use App\Repositories\MediaRepository;
 use App\Repositories\SettingRepository;
 use App\Repositories\SlideRepository;
 
@@ -36,6 +37,7 @@ if (!$hasValidConfig) {
 }
 
 require_once $root . '/app/bootstrap.php';
+ensurePublicUploadsSymlink($root);
 
 if (str_starts_with($path, '/api/')) {
     $controller = new ApiController(
@@ -43,7 +45,8 @@ if (str_starts_with($path, '/api/')) {
         new SlideRepository(db()),
         new SettingRepository(db()),
         new FlyerRepository(db()),
-        new OrderRepository(db())
+        new OrderRepository(db()),
+        new MediaRepository(db())
     );
 
     if ($method === 'GET' && $path === '/api/bootstrap') {
@@ -97,6 +100,12 @@ if (str_starts_with($path, '/api/')) {
     }
 
 
+
+    if ($method === 'POST' && $path === '/api/media/upload') {
+        $controller->uploadMedia();
+        return;
+    }
+
     if ($method === 'GET' && $path === '/api/flyers') {
         $controller->getFlyers();
         return;
@@ -116,6 +125,23 @@ if (str_starts_with($path, '/api/')) {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['error' => 'Endpoint no encontrado'], JSON_UNESCAPED_UNICODE);
     return;
+}
+
+
+function ensurePublicUploadsSymlink(string $root): void
+{
+    $publicUploads = $root . '/public/uploads';
+    $storageUploads = $root . '/storage/uploads';
+
+    if (!is_dir($storageUploads) && !mkdir($storageUploads, 0775, true) && !is_dir($storageUploads)) {
+        return;
+    }
+
+    if (is_link($publicUploads) || file_exists($publicUploads)) {
+        return;
+    }
+
+    @symlink($storageUploads, $publicUploads);
 }
 
 function isValidInstallation(string $configPath): bool

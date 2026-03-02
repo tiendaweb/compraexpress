@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Repositories\FlyerRepository;
+use App\Repositories\MediaRepository;
 use App\Repositories\OrderRepository;
 use App\Repositories\ProductRepository;
 use App\Repositories\SettingRepository;
@@ -18,6 +19,7 @@ class ApiController
         private readonly SettingRepository $settings,
         private readonly FlyerRepository $flyers,
         private readonly OrderRepository $orders,
+        private readonly MediaRepository $media,
     ) {
     }
 
@@ -55,6 +57,75 @@ class ApiController
 
         $product = $this->products->create($name, $price, $img);
         $this->json($product, 201);
+    }
+
+    public function uploadMedia(): void
+    {
+        if (!isset($_FILES['file']) || !is_array($_FILES['file'])) {
+            $this->json(['error' => 'Debes adjuntar un archivo en el campo "file".'], 422);
+            return;
+        }
+
+        $file = $_FILES['file'];
+        $errorCode = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($errorCode !== UPLOAD_ERR_OK) {
+            $this->json(['error' => 'Error al subir archivo. Código: ' . $errorCode], 422);
+            return;
+        }
+
+        $tmpPath = (string) ($file['tmp_name'] ?? '');
+        $originalName = (string) ($file['name'] ?? 'archivo');
+        $size = (int) ($file['size'] ?? 0);
+
+        $maxSize = 5 * 1024 * 1024;
+        if ($size <= 0 || $size > $maxSize) {
+            $this->json(['error' => 'El archivo debe pesar entre 1 byte y 5 MB.'], 422);
+            return;
+        }
+
+        $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+        if (!in_array($extension, $allowedExtensions, true)) {
+            $this->json(['error' => 'Extensión no permitida. Usa jpg, jpeg, png, webp o gif.'], 422);
+            return;
+        }
+
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mimeType = (string) $finfo->file($tmpPath);
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+        if (!in_array($mimeType, $allowedMimes, true)) {
+            $this->json(['error' => 'Tipo MIME no permitido.'], 422);
+            return;
+        }
+
+        $year = date('Y');
+        $month = date('m');
+        $relativeDir = '/uploads/' . $year . '/' . $month;
+        $storageDir = dirname(__DIR__, 2) . '/storage' . $relativeDir;
+
+        if (!is_dir($storageDir) && !mkdir($storageDir, 0775, true) && !is_dir($storageDir)) {
+            $this->json(['error' => 'No fue posible crear la carpeta de almacenamiento.'], 500);
+            return;
+        }
+
+        $uniqueName = bin2hex(random_bytes(16)) . '.' . $extension;
+        $target = $storageDir . '/' . $uniqueName;
+
+        if (!move_uploaded_file($tmpPath, $target)) {
+            $this->json(['error' => 'No fue posible guardar el archivo subido.'], 500);
+            return;
+        }
+
+        $publicPath = $relativeDir . '/' . $uniqueName;
+        $uploadedBy = isset($_POST['uploaded_by']) ? trim((string) $_POST['uploaded_by']) : null;
+        $uploadedBy = $uploadedBy === '' ? null : $uploadedBy;
+        $media = $this->media->create($originalName, $publicPath, $mimeType, $size, $uploadedBy);
+
+        $this->json([
+            'media' => $media,
+            'path' => $publicPath,
+        ], 201);
     }
 
     public function deleteProduct(int $id): void
