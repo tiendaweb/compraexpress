@@ -33,8 +33,18 @@ async function fetchJSON(url, options = {}) {
         ...options
     });
 
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || 'Error de servidor');
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+        const error = new Error((payload && payload.error) || 'Error de servidor');
+        error.status = response.status;
+        error.code = payload && payload.code ? payload.code : null;
+        throw error;
+    }
+
+    if (!payload || typeof payload !== 'object') {
+        throw new Error('Respuesta inválida del servidor.');
+    }
+
     return payload;
 }
 
@@ -443,7 +453,29 @@ if (imageSourceSelect) {
     toggleAdminImageSource();
 }
 
+function classifyInitError(error) {
+    const message = String(error && error.message ? error.message : '').toLowerCase();
+    const code = String(error && error.code ? error.code : '').toUpperCase();
+
+    if (code === 'INSTALLATION_INCOMPLETE' || message.includes('instalación incompleta') || message.includes('schema') || message.includes('esquema')) {
+        return `No se pudo cargar la tienda porque la instalación está incompleta. Ejecuta el instalador en ${appUrl('/install.php')}.`;
+    }
+
+    if (
+        message.includes('conexión')
+        || message.includes('acceso denegado')
+        || message.includes('credencial')
+        || message.includes('base de datos')
+        || message.includes('could not connect')
+        || message.includes('connection')
+    ) {
+        return 'No se pudo cargar la tienda por un problema de conexión o credenciales de la base de datos.';
+    }
+
+    return 'No se pudo cargar la tienda. Inténtalo de nuevo en unos minutos.';
+}
+
 initStore().catch(error => {
     console.error(error);
-    alert('No se pudo cargar la tienda. Revisa la conexión con la base de datos.');
+    alert(classifyInitError(error));
 });
