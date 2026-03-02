@@ -9,6 +9,9 @@
             <input id="flyer-title" type="text" placeholder="Título del flyer" class="w-full p-3 border rounded-full bg-baby-cream">
             <select id="flyer-saved" class="w-full p-3 border rounded-full bg-baby-cream"></select>
             <select id="flyer-product-select" class="w-full p-3 border rounded-full bg-baby-cream"></select>
+            <select id="flyer-template-select" class="w-full p-3 border rounded-full bg-baby-cream">
+                <option value="custom">-- Diseño libre --</option>
+            </select>
             <div class="grid grid-cols-2 gap-2">
                 <button onclick="flyerAddElement('text')" class="bg-baby-blue py-2 rounded-full font-bold">+ Texto</button>
                 <button onclick="flyerAddElement('image')" class="bg-baby-green py-2 rounded-full font-bold">+ Imagen</button>
