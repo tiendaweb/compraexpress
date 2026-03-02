@@ -22,6 +22,17 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 require_once $root . '/app/Install/InstallationState.php';
 
 if (!isValidInstallation($configPath)) {
+    if (str_starts_with($path, '/api/')) {
+        http_response_code(503);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'error' => 'Instalación incompleta',
+            'code' => 'INSTALLATION_INCOMPLETE',
+            'installUrl' => appUrl($basePath, '/install.php'),
+        ], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
     header('Location: ' . appUrl($basePath, '/install.php'));
     exit;
 }

@@ -10,6 +10,7 @@ use App\Repositories\OrderRepository;
 use App\Repositories\ProductRepository;
 use App\Repositories\SettingRepository;
 use App\Repositories\SlideRepository;
+use PDOException;
 
 class ApiController
 {
@@ -25,11 +26,23 @@ class ApiController
 
     public function bootstrap(): void
     {
-        $this->json([
-            'products' => $this->products->all('active'),
-            'slides' => $this->slides->all(),
-            'config' => $this->settings->all(),
-        ]);
+        try {
+            $this->json([
+                'products' => $this->products->all('active'),
+                'slides' => $this->slides->all(),
+                'config' => $this->settings->all(),
+            ]);
+        } catch (PDOException $exception) {
+            if ($this->isInstallationSchemaError($exception)) {
+                $this->json([
+                    'error' => 'Instalación incompleta',
+                    'code' => 'INSTALLATION_INCOMPLETE',
+                ], 503);
+                return;
+            }
+
+            throw $exception;
+        }
     }
 
     public function getProducts(): void
@@ -298,6 +311,17 @@ class ApiController
 
         $this->json($order);
     }
+
+    private function isInstallationSchemaError(PDOException $exception): bool
+    {
+        $sqlState = (string) $exception->getCode();
+        $message = strtolower($exception->getMessage());
+
+        return $sqlState === '42S02'
+            || str_contains($message, 'base table or view not found')
+            || str_contains($message, 'table') && str_contains($message, "doesn't exist");
+    }
+
     private function json(array $data, int $status = 200): void
     {
         http_response_code($status);
