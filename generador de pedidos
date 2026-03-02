@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Flyers - Supermercado</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Interact.js para Drag & Resize -->
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    
+    <!-- FontAwesome para Iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* Estilos personalizados para el Lienzo y Elementos */
+        body {
+            background-color: #f3f4f6;
+            overflow: hidden; /* Evitar scroll general, manejado por paneles */
+        }
+
+        #canvas-wrapper {
+            background-image: linear-gradient(45deg, #e5e7eb 25%, transparent 25%), 
+                              linear-gradient(-45deg, #e5e7eb 25%, transparent 25%), 
+                              linear-gradient(45deg, transparent 75%, #e5e7eb 75%), 
+                              linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        #flyer-canvas {
+            position: relative;
+            background-color: white;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+            transform-origin: top center;
+            /* Ancho base fijo para mantener consistencia en coordenadas, escalable visualmente si es necesario */
+            width: 600px; 
+            transition: height 0.3s ease, background-color 0.3s ease;
+        }
+
+        .canvas-element {
+            position: absolute;
+            box-sizing: border-box;
+            touch-action: none;
+            user-select: none;
+        }
+
+        /* Indicadores visuales al pasar el mouse o seleccionar */
+        .canvas-element:hover {
+            outline: 2px dashed #3b82f6;
+            cursor: move;
+        }
+
+        .canvas-element.selected {
+            outline: 2px solid #2563eb;
+            z-index: 50 !important;
+        }
+
+        /* Estilo para elementos de texto en modo edición */
+        .canvas-element.editing {
+            outline: 2px solid #10b981;
+            cursor: text;
+            user-select: text;
+        }
+
+        /* Esquinas de redimensionamiento */
+        .resize-handle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #2563eb;
+            border-radius: 50%;
+            display: none;
+        }
+        
+        .canvas-element.selected .resize-handle {
+            display: block;
+        }
+
+        .resize-handle-nw { top: -5px; left: -5px; cursor: nw-resize; }
+        .resize-handle-ne { top: -5px; right: -5px; cursor: ne-resize; }
+        .resize-handle-sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+        .resize-handle-se { bottom: -5px; right: -5px; cursor: se-resize; }
+
+        /* Ocultar scrollbars webkit */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+    </style>
+</head>
+<body class="flex h-screen font-sans text-gray-800">
+
+    <!-- PANEL DE CONTROL (Sidebar) -->
+    <aside class="w-80 bg-white shadow-xl flex flex-col z-10 relative">
+        <div class="p-6 bg-blue-600 text-white">
+            <h1 class="text-2xl font-bold flex items-center gap-2">
+                <i class="fa-solid fa-store"></i> PromoMaker
+            </h1>
+            <p class="text-blue-100 text-sm mt-1">Generador de Flyers</p>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+            
+            <!-- Configuraciones Globales -->
+            <div class="space-y-4">
+                <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Configuración</h2>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Tamaño del Lienzo (Aspect Ratio)</label>
+                    <select id="ratio-select" class="w-full border-gray-300 rounded-md shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                        <option value="1:1">1:1 (Post Cuadrado - 600x600)</option>
+                        <option value="3:4">3:4 (Retrato - 600x800)</option>
+                        <option value="4:5">4:5 (Instagram - 600x750)</option>
+                        <option value="9:16">9:16 (Stories/Reels - 600x1066)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-1">Plantilla Base</label>
+                    <select id="template-select" class="w-full border-gray-300 rounded-md shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                        <option value="custom">-- Diseño Libre --</option>
+                        <option value="oferta-estrella">Oferta Estrella</option>
+                        <option value="fin-semana">Fin de Semana</option>
+                        <option value="liquidacion">Liquidación Total</option>
+                        <option value="basicos">Básicos del Hogar</option>
+                    </select>
+                </div>
+            </div>
+
+            <hr class="border-gray-200">
+
+            <!-- Agregar Elementos -->
+            <div class="space-y-4">
+                <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Agregar Elementos</h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="add-text-btn" class="flex flex-col items-center justify-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-colors">
+                        <i class="fa-solid fa-font text-xl text-blue-500 mb-1"></i>
+                        <span class="text-xs font-medium">Texto</span>
+                    </button>
+                    <button id="add-img-btn" class="flex flex-col items-center justify-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-colors">
+                        <i class="fa-solid fa-image text-xl text-green-500 mb-1"></i>
+                        <span class="text-xs font-medium">Imagen</span>
+                    </button>
+                </div>
+            </div>
+
+            <hr class="border-gray-200">
+            
+            <!-- Instrucciones -->
+            <div class="bg-blue-50 text-blue-800 p-3 rounded-lg text-xs leading-relaxed">
+                <p><strong>Tips:</strong></p>
+                <ul class="list-disc pl-4 mt-1 space-y-1">
+                    <li>Arrastra para mover.</li>
+                    <li>Usa los bordes para redimensionar.</li>
+                    <li><strong>Doble clic</strong> en texto para editarlo.</li>
+                    <li><strong>Doble clic</strong> en imagen para cambiar URL.</li>
+                    <li>Selecciona un elemento y pulsa <kbd class="bg-white px-1 rounded shadow">Supr</kbd> o <kbd class="bg-white px-1 rounded shadow">Backspace</kbd> para borrar.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="p-4 border-t border-gray-200 bg-gray-50 flex justify-between gap-2">
+            <button id="reset-btn" class="flex-1 bg-red-100 text-red-700 py-2 rounded-md hover:bg-red-200 transition-colors text-sm font-bold">
+                <i class="fa-solid fa-trash-can mr-1"></i> Reiniciar
+            </button>
+            <button id="export-btn" class="flex-1 bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition-colors text-sm font-bold" onclick="alert('Funcionalidad de exportar a JPG/PNG requeriría html2canvas en producción. ¡Estado actual guardado en LocalStorage!')">
+                <i class="fa-solid fa-download mr-1"></i> Guardar
+            </button>
+        </div>
+    </aside>
+
+    <!-- LIENZO (Canvas Preview) -->
+    <main id="canvas-wrapper" class="flex-1 flex justify-center items-start pt-10 pb-10 overflow-y-auto">
+        <!-- El contenedor principal del Flyer -->
+        <div id="flyer-canvas" class="bg-white relative">
+            <!-- Los elementos se inyectarán aquí dinámicamente -->
+        </div>
+    </main>
+
+    <!-- Modal para cambiar imagen -->
+    <div id="image-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-96 max-w-[90%]">
+            <h3 class="text-lg font-bold mb-4 text-gray-800">Modificar Imagen</h3>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-1 text-gray-700">Opción 1: Ingresa una URL</label>
+                <input type="text" id="img-modal-url" class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="https://...">
+            </div>
+            
+            <div class="relative flex py-2 items-center">
+                <div class="flex-grow border-t border-gray-300"></div>
+                <span class="flex-shrink-0 mx-4 text-gray-400 text-sm">O</span>
+                <div class="flex-grow border-t border-gray-300"></div>
+            </div>
+            
+            <div class="mb-4 mt-2">
+                <label class="block text-sm font-medium mb-1 text-gray-700">Opción 2: Sube un archivo</label>
+                <input type="file" id="img-modal-file" accept="image/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+            </div>
+            
+            <div class="flex justify-end gap-2 mt-6">
+                <button id="img-modal-cancel" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200 font-medium transition-colors">Cancelar</button>
+                <button id="img-modal-save" class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 font-medium transition-colors">Aplicar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGICA DE LA APLICACION (JavaScript) -->
+    <script>
+        /**
+         * ESTADO GLOBAL DE LA APLICACIÓN
+         */
+        const CANVAS_WIDTH = 600;
+        let selectedElementId = null;
+
+        let appState = {
+            ratio: '1:1',
+            template: 'custom',
+            bgColor: '#ffffff',
+            elements: []
+        };
+
+        // Diccionario de alturas según aspecto
+        const ratioHeights = {
+            '1:1': 600,
+            '3:4': 800,
+            '4:5': 750,
+            '9:16': 1066
+        };
+
+        // Elementos del DOM
+        const canvas = document.getElementById('flyer-canvas');
+        const ratioSelect = document.getElementById('ratio-select');
+        const templateSelect = document.getElementById('template-select');
+        const btnAddText = document.getElementById('add-text-btn');
+        const btnAddImg = document.getElementById('add-img-btn');
+        const btnReset = document.getElementById('reset-btn');
+
+        // Elementos del Modal de Imagen
+        const imageModal = document.getElementById('image-modal');
+        const imgModalUrl = document.getElementById('img-modal-url');
+        const imgModalFile = document.getElementById('img-modal-file');
+        const btnModalCancel = document.getElementById('img-modal-cancel');
+        const btnModalSave = document.getElementById('img-modal-save');
+        let currentEditingImageId = null;
+
+        /**
+         * DEFINICIÓN DE PLANTILLAS
+         */
+        const templates = {
+            'oferta-estrella': {
+                bgColor: '#fef08a', // yellow-200
+                elements: [
+                    { id: 't_img', type: 'image', src: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&h=400&q=80', x: 100, y: 150, w: 400, h: 400, zIndex: 1 },
+                    { id: 't_title', type: 'text', content: '¡OFERTA ESTRELLA!', x: 20, y: 30, w: 560, h: 80, fontSize: '50px', fontWeight: 'bold', color: '#dc2626', textAlign: 'center', zIndex: 2 },
+                    { id: 't_sub', type: 'text', content: 'Sólo por hoy', x: 200, y: 110, w: 200, h: 40, fontSize: '24px', fontWeight: 'normal', color: '#000000', textAlign: 'center', zIndex: 2 },
+                    { id: 't_desc', type: 'text', content: 'Lleva la mejor calidad al mejor precio.', x: 50, y: 560, w: 500, h: 60, fontSize: '20px', fontWeight: 'normal', color: '#374151', textAlign: 'center', zIndex: 2 },
+                    { id: 't_pres', type: 'text', content: 'Presentación: 1 Kg', x: 50, y: 620, w: 500, h: 40, fontSize: '18px', fontWeight: 'bold', color: '#4b5563', textAlign: 'center', zIndex: 2 },
+                    { id: 't_price', type: 'text', content: '$9.99', x: 350, y: 380, w: 220, h: 100, fontSize: '70px', fontWeight: 'bold', color: '#ffffff', bgColor: '#ef4444', borderRadius: '50px', textAlign: 'center', zIndex: 3 }
+                ]
+            },
+            'fin-semana': {
+                bgColor: '#bfdbfe', // blue-200
+                elements: [
+                    { id: 't_title', type: 'text', content: '¡FIN DE SEMANA LOCO!', x: 30, y: 40, w: 540, h: 60, fontSize: '45px', fontWeight: '900', color: '#1e3a8a', textAlign: 'center', zIndex: 2 },
+                    { id: 't_img', type: 'image', src: 'https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=400&h=400&q=80', x: 100, y: 120, w: 400, h: 400, zIndex: 1 },
+                    { id: 't_price', type: 'text', content: '2x1', x: 50, y: 380, w: 180, h: 120, fontSize: '80px', fontWeight: 'bold', color: '#fef08a', bgColor: '#1d4ed8', borderRadius: '50%', textAlign: 'center', zIndex: 3 },
+                    { id: 't_desc', type: 'text', content: 'En productos seleccionados', x: 50, y: 550, w: 500, h: 50, fontSize: '24px', fontWeight: 'bold', color: '#1e40af', textAlign: 'center', zIndex: 2 }
+                ]
+            },
+            'liquidacion': {
+                bgColor: '#fecaca', // red-200
+                elements: [
+                    { id: 't_title', type: 'text', content: 'LIQUIDACIÓN TOTAL', x: 0, y: 20, w: 600, h: 80, fontSize: '55px', fontWeight: '900', color: '#ffffff', bgColor: '#b91c1c', textAlign: 'center', zIndex: 2 },
+                    { id: 't_img', type: 'image', src: 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=400&h=400&q=80', x: 100, y: 120, w: 400, h: 400, zIndex: 1 },
+                    { id: 't_price', type: 'text', content: '-50%', x: 380, y: 150, w: 200, h: 100, fontSize: '60px', fontWeight: 'bold', color: '#b91c1c', bgColor: '#fef08a', borderRadius: '10px', textAlign: 'center', zIndex: 3 },
+                    { id: 't_desc', type: 'text', content: 'Hasta agotar stock.', x: 50, y: 550, w: 500, h: 40, fontSize: '22px', fontWeight: 'normal', color: '#7f1d1d', textAlign: 'center', zIndex: 2 }
+                ]
+            },
+            'basicos': {
+                bgColor: '#ffffff', // white
+                elements: [
+                    { id: 't_title', type: 'text', content: 'Básicos del Hogar', x: 50, y: 40, w: 500, h: 50, fontSize: '36px', fontWeight: 'bold', color: '#166534', textAlign: 'left', zIndex: 2 },
+                    { id: 't_sub', type: 'text', content: 'Calidad todos los días', x: 50, y: 90, w: 500, h: 30, fontSize: '20px', fontWeight: 'normal', color: '#6b7280', textAlign: 'left', zIndex: 2 },
+                    { id: 't_img', type: 'image', src: 'https://images.unsplash.com/photo-1584308666744-24d5e478acba?auto=format&fit=crop&w=300&h=300&q=80', x: 150, y: 150, w: 300, h: 300, zIndex: 1 },
+                    { id: 't_price', type: 'text', content: '$15.50', x: 50, y: 480, w: 200, h: 60, fontSize: '45px', fontWeight: 'bold', color: '#15803d', textAlign: 'left', zIndex: 3 },
+                    { id: 't_pres', type: 'text', content: 'Cont. Neto: 500g', x: 50, y: 550, w: 200, h: 30, fontSize: '16px', fontWeight: 'bold', color: '#4b5563', textAlign: 'left', zIndex: 2 }
+                ]
+            }
+        };
+
+        /**
+         * FUNCIONES DE AYUDA
+         */
+        const generateId = () => 'el_' + Math.random().toString(36).substr(2, 9);
+        
+        // Cargar estado desde LocalStorage
+        const loadState = () => {
+            const saved = localStorage.getItem('flyerState');
+            if (saved) {
+                appState = JSON.parse(saved);
+                ratioSelect.value = appState.ratio;
+                templateSelect.value = appState.template;
+            } else {
+                // Estado inicial por defecto
+                loadTemplate('oferta-estrella');
+            }
+        };
+
+        // Guardar estado en LocalStorage
+        const saveState = () => {
+            localStorage.setItem('flyerState', JSON.stringify(appState));
+        };
+
+        // Cargar una plantilla
+        const loadTemplate = (templateName) => {
+            appState.template = templateName;
+            templateSelect.value = templateName;
+            
+            if (templateName === 'custom') {
+                appState.elements = [];
+                appState.bgColor = '#ffffff';
+            } else if (templates[templateName]) {
+                // Clonado profundo para evitar referencias mutables
+                appState.elements = JSON.parse(JSON.stringify(templates[templateName].elements));
+                appState.bgColor = templates[templateName].bgColor;
+            }
+            
+            // Ajustar ratio basado en plantilla si es necesario (por defecto lo dejamos)
+            renderCanvas();
+            saveState();
+        };
+
+        /**
+         * RENDERIZADO DEL LIENZO
+         */
+        const renderCanvas = () => {
+            // Ajustar tamaño del lienzo
+            canvas.style.height = `${ratioHeights[appState.ratio]}px`;
+            canvas.style.backgroundColor = appState.bgColor;
+            
+            // Limpiar lienzo
+            canvas.innerHTML = '';
+
+            // Renderizar elementos
+            appState.elements.sort((a,b) => (a.zIndex || 1) - (b.zIndex || 1)).forEach(elData => {
+                const el = document.createElement('div');
+                el.id = elData.id;
+                el.className = 'canvas-element ' + (elData.type === 'text' ? 'flex items-center' : '');
+                
+                // Aplicar estilos base (Posición y Tamaño)
+                el.style.width = `${elData.w}px`;
+                el.style.height = `${elData.h}px`;
+                el.style.transform = `translate(${elData.x}px, ${elData.y}px)`;
+                el.style.zIndex = elData.zIndex || 1;
+                
+                // Atributos para Interact.js
+                el.setAttribute('data-x', elData.x);
+                el.setAttribute('data-y', elData.y);
+
+                if (elData.type === 'text') {
+                    // Contenedor interno editable
+                    const innerText = document.createElement('div');
+                    innerText.className = 'w-full h-full outline-none';
+                    innerText.innerHTML = elData.content;
+                    
+                    // Aplicar estilos específicos de texto
+                    el.style.fontSize = elData.fontSize || '24px';
+                    el.style.fontWeight = elData.fontWeight || 'normal';
+                    el.style.color = elData.color || '#000000';
+                    el.style.backgroundColor = elData.bgColor || 'transparent';
+                    el.style.borderRadius = elData.borderRadius || '0px';
+                    // Text align lo aplicamos al contenedor flex
+                    el.style.justifyContent = elData.textAlign === 'center' ? 'center' : (elData.textAlign === 'right' ? 'flex-end' : 'flex-start');
+                    innerText.style.textAlign = elData.textAlign || 'left';
+                    
+                    // Eventos de edición
+                    innerText.addEventListener('dblclick', (e) => {
+                        e.stopPropagation();
+                        innerText.contentEditable = true;
+                        innerText.focus();
+                        el.classList.add('editing');
+                        // Seleccionar todo el texto
+                        document.execCommand('selectAll', false, null);
+                    });
+
+                    innerText.addEventListener('blur', () => {
+                        innerText.contentEditable = false;
+                        el.classList.remove('editing');
+                        // Actualizar estado
+                        updateElementState(elData.id, { content: innerText.innerHTML });
+                    });
+
+                    el.appendChild(innerText);
+
+                } else if (elData.type === 'image') {
+                    const img = document.createElement('img');
+                    img.src = elData.src;
+                    img.className = 'w-full h-full object-contain pointer-events-none'; // pointer-events-none para que no interfiera el drag
+                    
+                    el.addEventListener('dblclick', (e) => {
+                        e.stopPropagation();
+                        currentEditingImageId = elData.id;
+                        imgModalUrl.value = elData.src.startsWith('data:') ? '' : elData.src;
+                        imgModalFile.value = ''; // Reiniciar el input de archivo
+                        imageModal.classList.remove('hidden');
+                    });
+
+                    el.appendChild(img);
+                }
+
+                // Añadir controles de resize
+                const corners = ['nw', 'ne', 'sw', 'se'];
+                corners.forEach(corner => {
+                    const handle = document.createElement('div');
+                    handle.className = `resize-handle resize-handle-${corner}`;
+                    el.appendChild(handle);
+                });
+
+                // Selección del elemento
+                el.addEventListener('mousedown', (e) => {
+                    if (el.classList.contains('editing')) return; // No interrumpir si está editando
+                    selectElement(elData.id);
+                });
+
+                canvas.appendChild(el);
+            });
+        };
+
+        const updateElementState = (id, changes) => {
+            const index = appState.elements.findIndex(e => e.id === id);
+            if (index !== -1) {
+                appState.elements[index] = { ...appState.elements[index], ...changes };
+                saveState();
+            }
+        };
+
+        const selectElement = (id) => {
+            document.querySelectorAll('.canvas-element').forEach(el => el.classList.remove('selected'));
+            if (id) {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('selected');
+                selectedElementId = id;
+            } else {
+                selectedElementId = null;
+            }
+        };
+
+        // Deseleccionar al hacer clic en el canvas (fondo)
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.target === canvas) {
+                selectElement(null);
+                // Quitar focus de textos
+                document.querySelectorAll('.canvas-element.editing div').forEach(div => {
+                    div.contentEditable = false;
+                    div.parentElement.classList.remove('editing');
+                });
+            }
+        });
+
+        // Borrar elemento con teclado
+        document.addEventListener('keydown', (e) => {
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementId) {
+                // Verificar que no esté editando texto
+                const selectedDOM = document.getElementById(selectedElementId);
+                if (selectedDOM && !selectedDOM.classList.contains('editing')) {
+                    appState.elements = appState.elements.filter(el => el.id !== selectedElementId);
+                    selectElement(null);
+                    renderCanvas();
+                    saveState();
+                }
+            }
+        });
+
+        /**
+         * INTERACT.JS CONFIGURACIÓN (DRAG & RESIZE)
+         */
+        interact('.canvas-element')
+            .draggable({
+                ignoreFrom: '.editing, .resize-handle', // No arrastrar si edita o redimensiona
+                modifiers: [
+                    interact.modifiers.restrictRect({
+                        restriction: 'parent',
+                        endOnly: true
+                    })
+                ],
+                listeners: {
+                    start(event) {
+                        selectElement(event.target.id);
+                    },
+                    move(event) {
+                        const target = event.target;
+                        // Mantener la escala de zoom en cuenta si implementamos zoom, por ahora ratio 1:1 pixel
+                        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+
+                        target.style.transform = `translate(${x}px, ${y}px)`;
+                        target.setAttribute('data-x', x);
+                        target.setAttribute('data-y', y);
+                    },
+                    end(event) {
+                        const target = event.target;
+                        updateElementState(target.id, {
+                            x: parseFloat(target.getAttribute('data-x')),
+                            y: parseFloat(target.getAttribute('data-y'))
+                        });
+                    }
+                }
+            })
+            .resizable({
+                edges: { left: '.resize-handle-nw, .resize-handle-sw', right: '.resize-handle-ne, .resize-handle-se', bottom: '.resize-handle-sw, .resize-handle-se', top: '.resize-handle-nw, .resize-handle-ne' },
+                modifiers: [
+                    interact.modifiers.restrictEdges({
+                        outer: 'parent'
+                    }),
+                    interact.modifiers.restrictSize({
+                        min: { width: 50, height: 50 }
+                    })
+                ],
+                listeners: {
+                    move: function (event) {
+                        let { x, y } = event.target.dataset;
+                        
+                        x = (parseFloat(x) || 0) + event.deltaRect.left;
+                        y = (parseFloat(y) || 0) + event.deltaRect.top;
+
+                        Object.assign(event.target.style, {
+                            width: `${event.rect.width}px`,
+                            height: `${event.rect.height}px`,
+                            transform: `translate(${x}px, ${y}px)`
+                        });
+
+                        Object.assign(event.target.dataset, { x, y });
+                    },
+                    end(event) {
+                        updateElementState(event.target.id, {
+                            x: parseFloat(event.target.dataset.x),
+                            y: parseFloat(event.target.dataset.y),
+                            w: parseFloat(event.target.style.width),
+                            h: parseFloat(event.target.style.height)
+                        });
+                    }
+                }
+            });
+
+        /**
+         * EVENTOS DE UI (PANEL DE CONTROL)
+         */
+        
+        // Cambiar Ratio
+        ratioSelect.addEventListener('change', (e) => {
+            appState.ratio = e.target.value;
+            renderCanvas();
+            saveState();
+        });
+
+        // Cambiar Plantilla
+        templateSelect.addEventListener('change', (e) => {
+            loadTemplate(e.target.value);
+        });
+
+        // Agregar Texto Nuevo
+        btnAddText.addEventListener('click', () => {
+            const newText = {
+                id: generateId(),
+                type: 'text',
+                content: 'Nuevo Texto',
+                x: 50, y: 50,
+                w: 200, h: 50,
+                fontSize: '24px',
+                color: '#000000',
+                zIndex: appState.elements.length + 1
+            };
+            appState.elements.push(newText);
+            renderCanvas();
+            saveState();
+            selectElement(newText.id);
+        });
+
+        // Agregar Imagen Nueva
+        btnAddImg.addEventListener('click', () => {
+            const newImg = {
+                id: generateId(),
+                type: 'image',
+                src: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=200&h=200&q=80',
+                x: 100, y: 100,
+                w: 200, h: 200,
+                zIndex: appState.elements.length + 1
+            };
+            appState.elements.push(newImg);
+            renderCanvas();
+            saveState();
+            selectElement(newImg.id);
+        });
+
+        // Eventos del Modal de Imagen
+        btnModalCancel.addEventListener('click', () => {
+            imageModal.classList.add('hidden');
+            currentEditingImageId = null;
+        });
+
+        btnModalSave.addEventListener('click', () => {
+            if (!currentEditingImageId) return;
+            
+            const file = imgModalFile.files[0];
+            if (file) {
+                // Si el usuario seleccionó un archivo, lo leemos como base64
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    updateElementState(currentEditingImageId, { src: e.target.result });
+                    renderCanvas();
+                    imageModal.classList.add('hidden');
+                };
+                reader.readAsDataURL(file);
+            } else if (imgModalUrl.value.trim() !== '') {
+                // Si el usuario ingresó una URL, la usamos
+                updateElementState(currentEditingImageId, { src: imgModalUrl.value.trim() });
+                renderCanvas();
+                imageModal.classList.add('hidden');
+            } else {
+                alert("Por favor ingresa una URL o selecciona un archivo para tu imagen.");
+            }
+        });
+
+        // Reset
+        btnReset.addEventListener('click', () => {
+            if(confirm('¿Estás seguro de querer limpiar todo el lienzo? Perderás los cambios no guardados.')) {
+                loadTemplate('custom');
+                ratioSelect.value = '1:1';
+                appState.ratio = '1:1';
+                renderCanvas();
+                saveState();
+            }
+        });
+
+        /**
+         * INICIALIZACIÓN
+         */
+        window.onload = () => {
+            loadState();
+            renderCanvas();
+        };
+
+    </script>
+</body>
+</html>
