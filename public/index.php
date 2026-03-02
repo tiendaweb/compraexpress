@@ -149,8 +149,18 @@ if (str_starts_with($path, '/api/')) {
         return;
     }
 
+    if ($method === 'GET' && $path === '/api/media') {
+        $controller->getMedia();
+        return;
+    }
+
     if ($method === 'POST' && $path === '/api/media/upload') {
         $controller->uploadMedia();
+        return;
+    }
+
+    if ($method === 'DELETE' && preg_match('#^/api/media/(\d+)$#', $path, $matches)) {
+        $controller->deleteMedia((int) $matches[1]);
         return;
     }
 

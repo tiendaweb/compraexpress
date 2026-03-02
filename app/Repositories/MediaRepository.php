@@ -34,4 +34,25 @@ class MediaRepository
             'uploaded_by' => $uploadedBy,
         ];
     }
+
+    public function all(): array
+    {
+        $stmt = $this->pdo->query('SELECT id, file_name, file_path, mime_type, file_size, uploaded_by, created_at FROM media ORDER BY created_at DESC, id DESC');
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT id, file_name, file_path, mime_type, file_size, uploaded_by, created_at FROM media WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    public function delete(int $id): bool
+    {
+        $stmt = $this->pdo->prepare('DELETE FROM media WHERE id = :id');
+        $stmt->execute([':id' => $id]);
+        return $stmt->rowCount() > 0;
+    }
 }
