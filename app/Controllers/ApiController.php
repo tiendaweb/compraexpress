@@ -133,6 +133,97 @@ class ApiController
         $this->json($product, 201);
     }
 
+
+    public function getUsers(): void
+    {
+        $this->enforceRole(['admin']);
+        $this->json($this->users->all());
+    }
+
+    public function createUser(): void
+    {
+        $this->enforceRole(['admin']);
+
+        $data = json_decode((string) file_get_contents('php://input'), true);
+        $name = trim((string) ($data['name'] ?? ''));
+        $email = trim(strtolower((string) ($data['email'] ?? '')));
+        $role = trim(strtolower((string) ($data['role'] ?? '')));
+        $password = (string) ($data['password'] ?? '');
+
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $password === '') {
+            $this->json(['error' => 'Nombre, email y contraseña son obligatorios.'], 422);
+            return;
+        }
+
+        if (!in_array($role, ['admin', 'gestion'], true)) {
+            $this->json(['error' => 'Rol inválido.'], 422);
+            return;
+        }
+
+        if (strlen($password) < 6) {
+            $this->json(['error' => 'La contraseña debe tener al menos 6 caracteres.'], 422);
+            return;
+        }
+
+        if ($this->users->findByEmail($email) !== null) {
+            $this->json(['error' => 'Ya existe un usuario con ese email.'], 409);
+            return;
+        }
+
+        $user = $this->users->create($name, $email, password_hash($password, PASSWORD_DEFAULT), $role);
+        $this->json($this->sanitizeUser($user), 201);
+    }
+
+    public function updateUser(int $id): void
+    {
+        $this->enforceRole(['admin']);
+
+        $data = json_decode((string) file_get_contents('php://input'), true);
+        $name = trim((string) ($data['name'] ?? ''));
+        $email = trim(strtolower((string) ($data['email'] ?? '')));
+        $role = trim(strtolower((string) ($data['role'] ?? '')));
+        $password = trim((string) ($data['password'] ?? ''));
+
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->json(['error' => 'Nombre y email válidos son obligatorios.'], 422);
+            return;
+        }
+
+        if (!in_array($role, ['admin', 'gestion'], true)) {
+            $this->json(['error' => 'Rol inválido.'], 422);
+            return;
+        }
+
+        $existing = $this->users->findById($id);
+        if ($existing === null) {
+            $this->json(['error' => 'Usuario no encontrado.'], 404);
+            return;
+        }
+
+        $duplicate = $this->users->findByEmail($email);
+        if ($duplicate !== null && (int) $duplicate['id'] !== $id) {
+            $this->json(['error' => 'Ya existe un usuario con ese email.'], 409);
+            return;
+        }
+
+        $passwordHash = null;
+        if ($password !== '') {
+            if (strlen($password) < 6) {
+                $this->json(['error' => 'La contraseña debe tener al menos 6 caracteres.'], 422);
+                return;
+            }
+            $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+        }
+
+        $user = $this->users->update($id, $name, $email, $role, $passwordHash);
+        if ($user === null) {
+            $this->json(['error' => 'Usuario no encontrado.'], 404);
+            return;
+        }
+
+        $this->json($this->sanitizeUser($user));
+    }
+
     public function getMedia(): void
     {
         $this->enforceRole(['admin', 'gestion']);
