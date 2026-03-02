@@ -120,6 +120,17 @@ if (str_starts_with($path, '/api/')) {
         return;
     }
 
+
+    if ($method === 'GET' && preg_match('#^/api/flyers/(\d+)/exports$#', $path, $matches)) {
+        $controller->listFlyerExports((int) $matches[1]);
+        return;
+    }
+
+    if ($method === 'POST' && preg_match('#^/api/flyers/(\d+)/export$#', $path, $matches)) {
+        $controller->exportFlyer((int) $matches[1]);
+        return;
+    }
+
     http_response_code(404);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['error' => 'Endpoint no encontrado'], JSON_UNESCAPED_UNICODE);
@@ -130,16 +141,24 @@ function ensurePublicUploadsSymlink(string $root): void
 {
     $publicUploads = $root . '/public/uploads';
     $storageUploads = $root . '/storage/uploads';
+    $storageFlyers = $root . '/storage/flyers';
 
     if (!is_dir($storageUploads) && !mkdir($storageUploads, 0775, true) && !is_dir($storageUploads)) {
         return;
     }
 
-    if (is_link($publicUploads) || file_exists($publicUploads)) {
+    if (!is_dir($storageFlyers) && !mkdir($storageFlyers, 0775, true) && !is_dir($storageFlyers)) {
         return;
     }
 
-    @symlink($storageUploads, $publicUploads);
+    if (!is_link($publicUploads) && !file_exists($publicUploads)) {
+        @symlink($storageUploads, $publicUploads);
+    }
+
+    $publicFlyers = $root . '/public/flyers';
+    if (!is_link($publicFlyers) && !file_exists($publicFlyers)) {
+        @symlink($storageFlyers, $publicFlyers);
+    }
 }
 
 function normalizePath(string $requestPath, string $basePath): string
@@ -257,6 +276,7 @@ function appUrl(string $basePath, string $path): string
 <script>
     window.APP_BASE_PATH = <?= json_encode($basePath, JSON_UNESCAPED_SLASHES) ?>;
 </script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="<?= htmlspecialchars(appUrl($basePath, '/assets/js/app.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 </body>
 </html>

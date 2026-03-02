@@ -73,9 +73,21 @@ CREATE TABLE IF NOT EXISTS flyers (
     title VARCHAR(200) NOT NULL,
     product_id BIGINT UNSIGNED NULL,
     layout_json JSON NOT NULL,
+    latest_export_path VARCHAR(500) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_flyers_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS flyer_exports (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    flyer_id BIGINT UNSIGNED NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    mime_type VARCHAR(80) NOT NULL DEFAULT 'image/png',
+    file_size INT UNSIGNED NOT NULL,
+    exported_by VARCHAR(160) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_flyer_exports_flyer FOREIGN KEY (flyer_id) REFERENCES flyers(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS media (
