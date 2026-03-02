@@ -133,6 +133,34 @@ class ApiController
         $this->json($product, 201);
     }
 
+    public function getMedia(): void
+    {
+        $this->enforceRole(['admin', 'gestion']);
+        $this->json($this->media->all());
+    }
+
+    public function deleteMedia(int $id): void
+    {
+        $this->enforceRole(['admin', 'gestion']);
+
+        $media = $this->media->findById($id);
+        if ($media === null) {
+            $this->json(['error' => 'Archivo no encontrado.'], 404);
+            return;
+        }
+
+        $relativePath = (string) ($media['file_path'] ?? '');
+        $storagePath = dirname(__DIR__, 2) . '/storage' . $relativePath;
+
+        $this->media->delete($id);
+
+        if ($relativePath !== '' && is_file($storagePath)) {
+            @unlink($storagePath);
+        }
+
+        $this->json(['ok' => true]);
+    }
+
     public function uploadMedia(): void
     {
         $this->enforceRole(['admin', 'gestion']);

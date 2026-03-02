@@ -25,6 +25,11 @@ const flyerState = {
     selectedElementId: null
 };
 
+const mediaState = {
+    items: [],
+    onSelect: null,
+};
+
 let cart = [];
 
 const appBasePath = (window.APP_BASE_PATH || '').replace(/\/$/, '');
@@ -395,7 +400,7 @@ function renderAdminList() {
     visibleProducts.forEach(p => {
         const target = Number(p.is_active) === 1 ? activeList : archivedList;
         const deleteAction = hasRole('admin') ? `<button onclick="adminDeleteProduct(${p.id})" class="text-red-400 p-2 hover:text-red-600 active:scale-95"><i class="fa-solid fa-trash-can"></i></button>` : '';
-        target.innerHTML += `<div draggable="${hasRole('admin', 'gestion')}" ondragstart="onProductDragStart(event)" data-product-id="${p.id}" class="bg-white p-3 rounded-xl border border-baby-blue-light hover:border-baby-blue ${hasRole('admin', 'gestion') ? 'cursor-move' : ''}"><div class="flex items-center gap-3"><img src="${p.img}" class="w-12 h-12 object-contain bg-baby-cream rounded-lg"><div class="flex-1"><p class="font-bold text-sm text-baby-text">${p.name}</p><p class="text-xs text-baby-pink font-bold">${storeState.config.currency}${Number(p.price).toLocaleString()}</p><p class="text-xs text-gray-500">${p.category_name || 'Sin categoría'}</p></div>${deleteAction}</div><div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2"><button onclick="openProductEdit(${p.id})" class="px-2 py-1 text-xs rounded-full bg-baby-blue-light">Editar</button><button onclick="quickToggleProduct(${p.id}, ${Number(p.is_active) === 1 ? 0 : 1})" class="px-2 py-1 text-xs rounded-full bg-white border border-baby-blue-light">${Number(p.is_active) === 1 ? 'Archivar' : 'Activar'}</button></div><div id="edit-product-${p.id}" class="hidden mt-3 space-y-2"><input id="edit-name-${p.id}" class="w-full p-2 border rounded" value="${p.name}"><input id="edit-price-${p.id}" type="number" class="w-full p-2 border rounded" value="${p.price}"><input id="edit-img-${p.id}" class="w-full p-2 border rounded" value="${p.img}"><select id="edit-category-${p.id}" class="w-full p-2 border rounded"><option value="">Sin categoría</option>${storeState.categories.map(c => `<option value="${c.id}" ${Number(p.category_id) === Number(c.id) ? 'selected' : ''}>${c.name}</option>`).join('')}</select><select id="edit-active-${p.id}" class="w-full p-2 border rounded"><option value="1" ${Number(p.is_active) === 1 ? 'selected' : ''}>Activo</option><option value="0" ${Number(p.is_active) === 0 ? 'selected' : ''}>Archivado</option></select><button onclick="saveProductEdit(${p.id})" class="w-full px-3 py-2 text-xs rounded-full bg-baby-pink text-white">Guardar edición</button></div></div>`;
+        target.innerHTML += `<div draggable="${hasRole('admin', 'gestion')}" ondragstart="onProductDragStart(event)" data-product-id="${p.id}" class="bg-white p-3 rounded-xl border border-baby-blue-light hover:border-baby-blue ${hasRole('admin', 'gestion') ? 'cursor-move' : ''}"><div class="flex items-center gap-3"><img src="${p.img}" class="w-12 h-12 object-contain bg-baby-cream rounded-lg"><div class="flex-1"><p class="font-bold text-sm text-baby-text">${p.name}</p><p class="text-xs text-baby-pink font-bold">${storeState.config.currency}${Number(p.price).toLocaleString()}</p><p class="text-xs text-gray-500">${p.category_name || 'Sin categoría'}</p></div>${deleteAction}</div><div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2"><button onclick="openProductEdit(${p.id})" class="px-2 py-1 text-xs rounded-full bg-baby-blue-light">Editar</button><button onclick="quickToggleProduct(${p.id}, ${Number(p.is_active) === 1 ? 0 : 1})" class="px-2 py-1 text-xs rounded-full bg-white border border-baby-blue-light">${Number(p.is_active) === 1 ? 'Archivar' : 'Activar'}</button></div><div id="edit-product-${p.id}" class="hidden mt-3 space-y-2"><input id="edit-name-${p.id}" class="w-full p-2 border rounded" value="${p.name}"><input id="edit-price-${p.id}" type="number" class="w-full p-2 border rounded" value="${p.price}"><input id="edit-img-${p.id}" class="w-full p-2 border rounded" value="${p.img}"><button onclick="openMediaPicker((item) => { const input = document.getElementById('edit-img-${p.id}'); if (input) input.value = item.file_path; })" class="w-full px-3 py-2 text-xs rounded-full border border-baby-blue-light">Elegir desde File Manager</button><select id="edit-category-${p.id}" class="w-full p-2 border rounded"><option value="">Sin categoría</option>${storeState.categories.map(c => `<option value="${c.id}" ${Number(p.category_id) === Number(c.id) ? 'selected' : ''}>${c.name}</option>`).join('')}</select><select id="edit-active-${p.id}" class="w-full p-2 border rounded"><option value="1" ${Number(p.is_active) === 1 ? 'selected' : ''}>Activo</option><option value="0" ${Number(p.is_active) === 0 ? 'selected' : ''}>Archivado</option></select><button onclick="saveProductEdit(${p.id})" class="w-full px-3 py-2 text-xs rounded-full bg-baby-pink text-white">Guardar edición</button></div></div>`;
     });
 
     setupProductDnD();
@@ -440,6 +445,68 @@ async function saveProductEdit(id) {
         alert(error.message);
     }
 }
+function closeMediaPicker() {
+    const modal = document.getElementById('media-picker-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+async function loadMediaLibrary() {
+    mediaState.items = await fetchJSON('/api/media');
+    const grid = document.getElementById('media-library-grid');
+    if (!grid) return mediaState.items;
+
+    if (!mediaState.items.length) {
+        grid.innerHTML = '<p class="text-sm text-gray-500 col-span-full">No hay archivos en la librería.</p>';
+        return mediaState.items;
+    }
+
+    grid.innerHTML = mediaState.items.map(item => `
+        <div class="border border-baby-blue-light rounded-xl p-2 bg-baby-cream">
+            <button type="button" onclick="selectMediaFile(${item.id})" class="block w-full text-left">
+                <img src="${item.file_path}" class="w-full h-24 object-cover rounded-lg mb-2" alt="${item.file_name}">
+                <p class="text-xs truncate font-semibold">${item.file_name}</p>
+            </button>
+            ${hasRole('admin', 'gestion') ? `<button type="button" onclick="deleteMediaFile(${item.id})" class="mt-2 w-full text-xs text-red-500">Eliminar</button>` : ''}
+        </div>
+    `).join('');
+
+    return mediaState.items;
+}
+
+async function openMediaPicker(onSelect) {
+    mediaState.onSelect = typeof onSelect === 'function' ? onSelect : null;
+    const modal = document.getElementById('media-picker-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    try {
+        await loadMediaLibrary();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+function selectMediaFile(id) {
+    const selected = mediaState.items.find(item => Number(item.id) === Number(id));
+    if (!selected) return;
+    if (mediaState.onSelect) mediaState.onSelect(selected);
+    closeMediaPicker();
+}
+
+async function deleteMediaFile(id) {
+    if (!confirm('¿Eliminar este archivo de la librería?')) return;
+
+    try {
+        await fetchJSON(`/api/media/${id}`, { method: 'DELETE' });
+        await loadMediaLibrary();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
 function toggleAdminImageSource() {
     const source = document.getElementById('admin-prod-image-source');
     const urlInput = document.getElementById('admin-prod-img-url');
@@ -774,6 +841,33 @@ async function flyerUploadElementImage(id, file) {
     }
 }
 
+function flyerSetImageFromMedia(path) {
+    let selectedElement = flyerState.elements.find(el => el.id === flyerState.selectedElementId && el.type === 'image');
+
+    if (!selectedElement) {
+        flyerAddElement('image');
+        selectedElement = flyerState.elements.find(el => el.id === flyerState.selectedElementId && el.type === 'image');
+    }
+
+    if (!selectedElement) return;
+    selectedElement.value = path;
+    renderFlyerBuilder();
+}
+
+async function flyerHandleCanvasDrop(file) {
+    if (!file || !file.type.startsWith('image/')) {
+        alert('Solo puedes soltar imágenes en el canvas.');
+        return;
+    }
+
+    try {
+        const path = await uploadAdminProductImage(file);
+        flyerSetImageFromMedia(path);
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
 function clampFlyerElement(el) {
     const canvas = document.getElementById('flyer-canvas');
     if (!canvas || !el) return;
@@ -868,6 +962,15 @@ function renderFlyerBuilder() {
 
     canvas.innerHTML = '';
     canvas.style.backgroundColor = flyerState.bgColor || '#fffaf0';
+    canvas.ondragover = (event) => {
+        event.preventDefault();
+    };
+    canvas.ondrop = async (event) => {
+        event.preventDefault();
+        const file = event.dataTransfer?.files?.[0];
+        if (!file) return;
+        await flyerHandleCanvasDrop(file);
+    };
     flyerState.elements.forEach(el => {
         const node = document.createElement(el.type === 'image' ? 'img' : 'div');
         const styles = el.styles || {};
@@ -907,7 +1010,7 @@ function renderFlyerBuilder() {
     elementsList.innerHTML = '';
     flyerState.elements.forEach(el => {
         if (el.type === 'image') {
-            elementsList.innerHTML += `<div class="p-2 rounded-xl border ${flyerState.selectedElementId === el.id ? 'border-baby-pink' : 'border-baby-blue-light'}"><div class="text-xs mb-1">IMAGEN</div><input class="w-full p-2 border rounded mb-2" placeholder="URL opcional" value="${el.value || ''}" oninput="flyerUpdateElement('${el.id}', this.value)"><input type="file" accept="image/*" class="w-full p-2 border rounded" onchange="flyerUploadElementImage('${el.id}', this.files[0])"></div>`;
+            elementsList.innerHTML += `<div class="p-2 rounded-xl border ${flyerState.selectedElementId === el.id ? 'border-baby-pink' : 'border-baby-blue-light'}"><div class="text-xs mb-1">IMAGEN</div><input class="w-full p-2 border rounded mb-2" placeholder="URL opcional" value="${el.value || ''}" oninput="flyerUpdateElement('${el.id}', this.value)"><input type="file" accept="image/*" class="w-full p-2 border rounded" onchange="flyerUploadElementImage('${el.id}', this.files[0])"><button type="button" onclick="openMediaPicker((item) => flyerUpdateElement('${el.id}', item.file_path))" class="w-full mt-2 px-3 py-2 text-xs rounded-full border border-baby-blue-light">Elegir desde File Manager</button></div>`;
             return;
         }
 
