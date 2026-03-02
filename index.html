@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pañalería y Algo Más | Tienda Online</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'baby-cream': '#fffaf0',
+                        'baby-blue-light': '#e0f7fa',
+                        'baby-blue': '#b3e5fc',
+                        'baby-pink': '#f8bbd0',
+                        'baby-green': '#c8e6c9',
+                        'baby-text': '#546e7a'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .product-card:hover { transform: translateY(-5px) rotate(1deg); transition: all 0.3s ease; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .active-tab { border-bottom: 4px solid #f8bbd0; color: #546e7a; font-weight: bold; }
+        body { font-family: 'Comic Sans MS', 'Courier New', sans-serif; } /* Tipografía más infantil */
+    </style>
+</head>
+<body class="bg-baby-cream text-baby-text font-sans">
+
+    <header class="sticky top-0 z-50 bg-white/90 backdrop-blur-sm shadow-sm border-b-2 border-baby-blue-light">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-baby-text flex items-center gap-2">
+                <i class="fa-solid fa-baby-carriage text-baby-pink"></i>
+                <span>Pañalería <span class="text-baby-blue font-light">& Más</span></span>
+            </h1>
+            <button onclick="toggleCart()" class="relative p-3 bg-baby-pink rounded-full text-white hover:scale-105 transition">
+                <i class="fa-solid fa-cart-shopping text-xl"></i>
+                <span id="cart-count" class="absolute -top-1 -right-1 bg-white text-baby-pink text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-baby-pink">0</span>
+            </button>
+        </div>
+        
+        <nav class="bg-white border-t border-baby-blue-light">
+            <div class="container mx-auto flex">
+                <button onclick="showTab('store')" id="tab-store" class="flex-1 py-3 text-center text-gray-500 hover:text-baby-text active-tab transition items-center justify-center gap-2 flex">
+                    <i class="fa-solid fa-store"></i> Tienda
+                </button>
+                <button onclick="showTab('admin')" id="tab-admin" class="flex-1 py-3 text-center text-gray-500 hover:text-baby-text transition items-center justify-center gap-2 flex">
+                    <i class="fa-solid fa-tools"></i> Admin Productos
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    <div id="section-store" class="tab-content">
+        <section id="slider-container" class="relative w-full h-56 md:h-96 overflow-hidden bg-baby-blue-light">
+            <div id="slider-wrapper" class="flex transition-transform duration-700 ease-in-out h-full">
+                </div>
+        </section>
+
+        <main class="container mx-auto px-4 py-10">
+            <h2 class="text-3xl font-bold mb-8 text-center text-baby-text flex items-center justify-center gap-3">
+                <i class="fa-solid fa-teddy-bear text-baby-blue"></i>
+                Nuestros Productos
+                <i class="fa-solid fa-teddy-bear text-baby-blue"></i>
+            </h2>
+            <div id="product-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                </div>
+        </main>
+    </div>
+
+    <div id="section-admin" class="tab-content container mx-auto px-4 py-10 hidden">
+        <h2 class="text-3xl font-bold mb-8 text-center text-baby-text flex items-center justify-center gap-3">
+            <i class="fa-solid fa-user-gear text-baby-pink"></i>
+            Panel de Administración
+        </h2>
+
+        <div class="grid md:grid-cols-3 gap-8">
+            <div class="bg-white p-6 rounded-3xl shadow-lg border-2 border-baby-blue-light space-y-4">
+                <h3 class="text-xl font-bold text-baby-text"><i class="fa-solid fa-plus-circle text-baby-green"></i> Agregar Nuevo Producto</h3>
+                <input type="text" id="admin-prod-name" placeholder="Nombre del producto" class="w-full p-3 border rounded-full bg-baby-cream focus:ring-2 focus:ring-baby-pink outline-none">
+                <input type="number" id="admin-prod-price" placeholder="Precio (ej: 12500)" class="w-full p-3 border rounded-full bg-baby-cream focus:ring-2 focus:ring-baby-pink outline-none">
+                <input type="text" id="admin-prod-img" placeholder="URL de la imagen" class="w-full p-3 border rounded-full bg-baby-cream focus:ring-2 focus:ring-baby-pink outline-none">
+                <button onclick="adminAddProduct()" class="w-full bg-baby-pink text-white py-3 rounded-full font-bold hover:bg-pink-400 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-save"></i> Guardar Producto
+                </button>
+            </div>
+
+            <div class="md:col-span-2 bg-white p-6 rounded-3xl shadow-lg border-2 border-baby-blue-light">
+                <h3 class="text-xl font-bold text-baby-text mb-4"><i class="fa-solid fa-list text-baby-blue"></i> Productos Actuales (En Memoria)</h3>
+                <div id="admin-product-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                    </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="cart-drawer" class="fixed inset-y-0 right-0 w-full max-w-md bg-baby-cream shadow-2xl z-[60] transform translate-x-full transition-transform duration-300 flex flex-col border-l-4 border-baby-blue">
+        <div class="p-5 border-b-2 border-baby-blue-light flex justify-between items-center bg-white">
+            <h3 class="text-xl font-bold text-baby-text flex items-center gap-2">
+                <i class="fa-solid fa-basket-shopping text-baby-pink"></i> Tu Pedido Suave
+            </h3>
+            <button onclick="toggleCart()" class="text-gray-400 text-3xl hover:text-baby-pink p-2">&times;</button>
+        </div>
+        
+        <div id="cart-items" class="flex-1 overflow-y-auto p-5 space-y-4 hide-scrollbar">
+            </div>
+
+        <div class="p-6 border-t-2 border-baby-blue-light bg-white rounded-t-3xl shadow-inner">
+            <div class="mb-5 bg-baby-blue-light p-4 rounded-2xl border border-baby-blue">
+                <p class="flex justify-between text-2xl font-bold text-baby-text"><span>Total:</span> <span id="cart-total" class="text-baby-pink">$0</span></p>
+            </div>
+            <div class="space-y-4">
+                <input type="text" id="cust-name" placeholder="Tu nombre completo ?" class="w-full p-3 border-2 border-baby-blue-light rounded-full focus:ring-2 focus:ring-baby-pink outline-none bg-baby-cream">
+                <input type="text" id="cust-address" placeholder="Dirección de entrega ?" class="w-full p-3 border-2 border-baby-blue-light rounded-full focus:ring-2 focus:ring-baby-pink outline-none bg-baby-cream">
+                <button onclick="sendOrder()" class="w-full bg-green-500 text-white py-4 rounded-full font-bold text-lg flex items-center justify-center gap-3 hover:bg-green-600 transition active:scale-95">
+                    <i class="fa-brands fa-whatsapp text-2xl"></i> Enviar Pedido por WhatsApp
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cart-overlay" onclick="toggleCart()" class="fixed inset-0 bg-black/40 z-[55] hidden backdrop-blur-sm"></div>
+
+    <script>
+        // --- CONFIGURACIÓN JSON MODIFICABLE (Exactamente igual logicamente) ---
+        // He incluido las imágenes en base64 para que el ejemplo funcione sin depender de URLs externas, 
+        // pero puedes volver a usar URLs de Unsplash si lo prefieres.
+        let storeData = {
+            config: {
+                whatsappNumber: "5491122334455", // Código de país + número
+                currency: "$"
+            },
+            slides: [
+                { image: "https://images.unsplash.com/photo-1515488764276-beab7607c1e6?q=80&w=800&auto=format&fit=crop", text: "Ofertas Mimitos" },
+                { image: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=800&q=80", text: "Todo para tu bebé" }
+            ],
+            // Usando imágenes base64 de ejemplo para que funcione offline/sin proxy
+            products: [
+                { id: 1, name: "Pañales Suavecitos G x40", price: 12500, img: "https://via.placeholder.com/300x300/e0f7fa/546e7a?text=Pañales" },
+                { id: 2, name: "Toallitas Húmedas Bebé x80", price: 2100, img: "https://via.placeholder.com/300x300/f8bbd0/546e7a?text=Toallitas" },
+                { id: 3, name: "Óleo Calcáreo Natural 500ml", price: 3400, img: "https://via.placeholder.com/300x300/c8e6c9/546e7a?text=Óleo" },
+                { id: 4, name: "Mamadera Anticólicos 260ml", price: 8900, img: "https://via.placeholder.com/300x300/fffaf0/546e7a?text=Mamadera" },
+            ]
+        };
+
+        let cart = [];
+
+        // --- RENDERIZADO (Lógica Original + Diseño Bebé) ---
+        function initStore() {
+            // Render Slider (Exactamente igual logicamente)
+            const sliderWrapper = document.getElementById('slider-wrapper');
+            sliderWrapper.innerHTML = ''; // Limpiar antes de renderizar
+            storeData.slides.forEach(slide => {
+                sliderWrapper.innerHTML += `
+                    <div class="min-w-full relative h-full">
+                        <img src="${slide.image}" class="w-full h-full object-cover">
+                        <div class="absolute inset-0 bg-black/40 flex items-center justify-center p-4">
+                            <h2 class="text-white text-3xl md:text-5xl font-bold drop-shadow-lg text-center bg-baby-pink/50 px-6 py-2 rounded-full">${slide.text}</h2>
+                        </div>
+                    </div>`;
+            });
+
+            // Render Products (Lógica Original + Diseño Bebé)
+            const grid = document.getElementById('product-grid');
+            grid.innerHTML = ''; // Limpiar antes de renderizar
+            storeData.products.forEach(p => {
+                grid.innerHTML += `
+                    <div class="bg-white p-4 rounded-3xl shadow-md product-card border-2 border-baby-blue-light flex flex-col">
+                        <div class="w-full h-36 bg-baby-cream rounded-2xl mb-4 flex items-center justify-center overflow-hidden">
+                            <img src="${p.img}" class="h-full object-contain">
+                        </div>
+                        <h3 class="text-base font-semibold text-baby-text h-12 overflow-hidden">${p.name}</h3>
+                        <p class="text-2xl font-bold text-baby-pink mt-2">${storeData.config.currency}${p.price.toLocaleString()}</p>
+                        <button onclick="addToCart(${p.id})" class="mt-4 w-full bg-baby-green text-baby-text py-3 rounded-full text-sm font-bold hover:bg-green-300 active:scale-95 transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-plus-circle"></i> Agregar
+                        </button>
+                    </div>`;
+            });
+
+            // Auto-slider (Exactamente igual)
+            let index = 0;
+            // Limpiar intervalo previo si existe (para el modo admin)
+            if(window.sliderInterval) clearInterval(window.sliderInterval);
+            window.sliderInterval = setInterval(() => {
+                if(!document.getElementById('section-store').classList.contains('hidden')) { // Solo mover si está visible
+                    index = (index + 1) % storeData.slides.length;
+                    sliderWrapper.style.transform = `translateX(-${index * 100}%)`;
+                }
+            }, 5000);
+
+            updateCartUI(); // Asegurar que el carrito esté actualizado al inicio
+        }
+
+        // --- LÓGICA DEL CARRITO (Exactamente igual) ---
+        function toggleCart() {
+            const drawer = document.getElementById('cart-drawer');
+            const overlay = document.getElementById('cart-overlay');
+            drawer.classList.toggle('translate-x-full');
+            overlay.classList.toggle('hidden');
+        }
+
+        function addToCart(id) {
+            const product = storeData.products.find(p => p.id === id);
+            const exists = cart.find(item => item.id === id);
+            
+            if (exists) {
+                exists.qty++;
+            } else {
+                cart.push({...product, qty: 1});
+            }
+            updateCartUI();
+        }
+
+        function removeFromCart(id) {
+            cart = cart.filter(item => item.id !== id);
+            updateCartUI();
+        }
+
+        function updateCartUI() {
+            const list = document.getElementById('cart-items');
+            const countLabel = document.getElementById('cart-count');
+            const totalLabel = document.getElementById('cart-total');
+            
+            list.innerHTML = '';
+            let total = 0;
+            let count = 0;
+
+            cart.forEach(item => {
+                total += item.price * item.qty;
+                count += item.qty;
+                list.innerHTML += `
+                    <div class="flex items-center gap-3 bg-white p-3 rounded-2xl shadow border border-baby-blue-light">
+                        <img src="${item.img}" class="w-16 h-16 object-contain rounded-lg bg-baby-cream">
+                        <div class="flex-1">
+                            <p class="text-sm font-bold text-baby-text">${item.name}</p>
+                            <p class="text-xs text-gray-500">${item.qty} x ${storeData.config.currency}${item.price.toLocaleString()}</p>
+                        </div>
+                        <button onclick="removeFromCart(${item.id})" class="text-red-300 p-2 hover:text-red-500"><i class="fa-solid fa-trash-can text-lg"></i></button>
+                    </div>`;
+            });
+
+            countLabel.innerText = count;
+            totalLabel.innerText = `${storeData.config.currency}${total.toLocaleString()}`;
+        }
+
+        // --- ENVÍO A WHATSAPP (Exactamente igual) ---
+        function sendOrder() {
+            const name = document.getElementById('cust-name').value;
+            const address = document.getElementById('cust-address').value;
+
+            if (cart.length === 0) return alert("¡El carrito está vacío, dulzura!");
+            if (!name || !address) return alert("Por favor, completa tus datos para el envío");
+
+            let message = `*Nuevo Pedido - Pañalería y Algo Más* ??%0A%0A`;
+            message += `*Cliente:* ${name}%0A`;
+            message += `*Dirección:* ${address}%0A%0A`;
+            message += `*Productos:*%0A`;
+            
+            cart.forEach(item => {
+                message += `- ${item.qty}x ${item.name} (${storeData.config.currency}${item.price * item.qty})%0A`;
+            });
+
+            const total = document.getElementById('cart-total').innerText;
+            message += `%0A*TOTAL: ${total}*`;
+
+            const url = `https://wa.me/${storeData.config.whatsappNumber}?text=${message}`;
+            window.open(url, '_blank');
+        }
+
+        // --- LÓGICA DE PESTAÑAS (Nueva) ---
+        function showTab(tabName) {
+            // Ocultar todo el contenido
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            // Desactivar todas las pestañas
+            document.querySelectorAll('nav button').forEach(el => el.classList.remove('active-tab'));
+
+            // Mostrar el contenido seleccionado y activar pestaña
+            if (tabName === 'store') {
+                document.getElementById('section-store').classList.remove('hidden');
+                document.getElementById('tab-store').classList.add('active-tab');
+            } else if (tabName === 'admin') {
+                document.getElementById('section-admin').classList.remove('hidden');
+                document.getElementById('tab-admin').classList.add('active-tab');
+                renderAdminList(); // Cargar la lista de admin al mostrar la pestaña
+            }
+        }
+
+        // --- LÓGICA DE ADMINISTRACIÓN (Nueva - Funciona en memoria) ---
+        function renderAdminList() {
+            const list = document.getElementById('admin-product-list');
+            list.innerHTML = ''; // Limpiar
+
+            storeData.products.forEach(p => {
+                list.innerHTML += `
+                    <div class="flex items-center gap-3 bg-baby-cream p-3 rounded-xl border border-baby-blue-light hover:border-baby-blue">
+                        <img src="${p.img}" class="w-12 h-12 object-contain bg-white rounded-lg">
+                        <div class="flex-1">
+                            <p class="font-bold text-sm text-baby-text">${p.name}</p>
+                            <p class="text-xs text-baby-pink font-bold">${storeData.config.currency}${p.price.toLocaleString()}</p>
+                        </div>
+                        <button onclick="adminDeleteProduct(${p.id})" class="text-red-400 p-2 hover:text-red-600 active:scale-95"><i class="fa-solid fa-trash-can"></i></button>
+                    </div>`;
+            });
+        }
+
+        function adminAddProduct() {
+            const nameInput = document.getElementById('admin-prod-name');
+            const priceInput = document.getElementById('admin-prod-price');
+            const imgInput = document.getElementById('admin-prod-img');
+
+            const name = nameInput.value;
+            const price = parseInt(priceInput.value);
+            let img = imgInput.value;
+
+            if (!name || !price) return alert("Nombre y Precio son obligatorios");
+            if (!img) img = "https://via.placeholder.com/300x300/f0f0f0/999?text=Sin+Imagen"; // Imagen por defecto
+
+            // Crear nuevo ID (el más alto actual + 1)
+            const newId = Math.max(...storeData.products.map(p => p.id), 0) + 1;
+
+            const newProduct = {
+                id: newId,
+                name: name,
+                price: price,
+                img: img
+            };
+
+            // Guardar en la estructura JSON (en memoria)
+            storeData.products.push(newProduct);
+
+            // Limpiar formulario y refrescar vistas
+            nameInput.value = '';
+            priceInput.value = '';
+            imgInput.value = '';
+            renderAdminList();
+            initStore(); // Refrescar la vista de la tienda
+            alert("¡Producto añadido con éxito (en memoria)!");
+        }
+
+        function adminDeleteProduct(id) {
+            if(!confirm("¿Estás seguro de eliminar este producto?")) return;
+            
+            // Eliminar del JSON (en memoria)
+            storeData.products = storeData.products.filter(p => p.id !== id);
+            
+            // También eliminar del carrito si estaba
+            cart = cart.filter(item => item.id !== id);
+            
+            // Refrescar vistas
+            renderAdminList();
+            initStore(); // Refrescar la tienda
+            alert("Producto eliminado (en memoria)");
+        }
+
+        // Iniciar todo
+        initStore();
+    </script>
+</body>
+</html>
