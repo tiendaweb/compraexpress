@@ -114,7 +114,13 @@ CREATE TABLE IF NOT EXISTS media (
 
 INSERT INTO settings (`key`, `value`) VALUES
     ('currency', '$'),
-    ('whatsappNumber', '573001234567')
+    ('whatsappNumber', '573001234567'),
+    ('appName', 'Pañalería y Algo Más'),
+    ('appLogo', ''),
+    ('socialLinks', '[]'),
+    ('address', ''),
+    ('googleMapsEmbed', ''),
+    ('appIcon', 'fa-solid fa-baby-carriage')
 ON DUPLICATE KEY UPDATE `value` = VALUES(`value`);
 
 INSERT INTO slides (image, text, sort_order) VALUES

@@ -401,6 +401,123 @@ class ApiController
         $this->json($this->settings->all());
     }
 
+    public function updateSettings(): void
+    {
+        $this->enforceRole(['admin']);
+
+        $data = json_decode((string) file_get_contents('php://input'), true);
+        if (!is_array($data)) {
+            $this->json(['error' => 'Payload inválido.'], 422);
+            return;
+        }
+
+        $socialLinks = $data['socialLinks'] ?? [];
+        if (is_string($socialLinks)) {
+            $socialLinks = json_decode($socialLinks, true);
+        }
+        if (!is_array($socialLinks)) {
+            $this->json(['error' => 'socialLinks debe ser un arreglo JSON válido.'], 422);
+            return;
+        }
+
+        $socialLinksJson = json_encode(array_values(array_filter(array_map(static function ($item) {
+            if (!is_array($item)) {
+                return null;
+            }
+
+            $label = trim((string) ($item['label'] ?? ''));
+            $url = trim((string) ($item['url'] ?? ''));
+            $icon = trim((string) ($item['icon'] ?? 'fa-solid fa-link'));
+
+            if ($label === '' || $url === '') {
+                return null;
+            }
+
+            return [
+                'label' => $label,
+                'url' => $url,
+                'icon' => $icon === '' ? 'fa-solid fa-link' : $icon,
+            ];
+        }, $socialLinks))));
+
+        if ($socialLinksJson === false) {
+            $this->json(['error' => 'No se pudo serializar socialLinks.'], 422);
+            return;
+        }
+
+        $payload = [
+            'appName' => trim((string) ($data['appName'] ?? 'Pañalería y Algo Más')),
+            'appLogo' => trim((string) ($data['appLogo'] ?? '')),
+            'socialLinks' => $socialLinksJson,
+            'address' => trim((string) ($data['address'] ?? '')),
+            'googleMapsEmbed' => trim((string) ($data['googleMapsEmbed'] ?? '')),
+            'whatsappNumber' => trim((string) ($data['whatsappNumber'] ?? '573001234567')),
+            'appIcon' => trim((string) ($data['appIcon'] ?? 'fa-solid fa-baby-carriage')),
+        ];
+
+        if ($payload['appName'] === '') {
+            $payload['appName'] = 'Pañalería y Algo Más';
+        }
+
+        if ($payload['whatsappNumber'] === '') {
+            $payload['whatsappNumber'] = '573001234567';
+        }
+
+        $this->json($this->settings->upsertMany($payload));
+    }
+
+    public function createSlide(): void
+    {
+        $this->enforceRole(['admin']);
+
+        $data = json_decode((string) file_get_contents('php://input'), true);
+        $image = trim((string) ($data['image'] ?? ''));
+        $text = trim((string) ($data['text'] ?? ''));
+        $sortOrder = (int) ($data['sort_order'] ?? 0);
+
+        if ($image === '' || $text === '') {
+            $this->json(['error' => 'Imagen y texto son obligatorios.'], 422);
+            return;
+        }
+
+        $this->json($this->slides->create($image, $text, $sortOrder), 201);
+    }
+
+    public function updateSlide(int $id): void
+    {
+        $this->enforceRole(['admin']);
+
+        $data = json_decode((string) file_get_contents('php://input'), true);
+        $image = trim((string) ($data['image'] ?? ''));
+        $text = trim((string) ($data['text'] ?? ''));
+        $sortOrder = (int) ($data['sort_order'] ?? 0);
+
+        if ($image === '' || $text === '') {
+            $this->json(['error' => 'Imagen y texto son obligatorios.'], 422);
+            return;
+        }
+
+        $slide = $this->slides->update($id, $image, $text, $sortOrder);
+        if ($slide === null) {
+            $this->json(['error' => 'Slide no encontrado.'], 404);
+            return;
+        }
+
+        $this->json($slide);
+    }
+
+    public function deleteSlide(int $id): void
+    {
+        $this->enforceRole(['admin']);
+
+        if (!$this->slides->delete($id)) {
+            $this->json(['error' => 'Slide no encontrado.'], 404);
+            return;
+        }
+
+        $this->json(['ok' => true]);
+    }
+
     public function getFlyers(): void
     {
         $this->enforceRole(['admin']);

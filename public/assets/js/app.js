@@ -6,7 +6,13 @@ const storeState = {
     adminCategoryFilter: '',
     config: {
         whatsappNumber: '573001234567',
-        currency: '$'
+        currency: '$',
+        appName: 'Pañalería y Algo Más',
+        appLogo: '',
+        appIcon: 'fa-solid fa-baby-carriage',
+        socialLinks: [],
+        address: '',
+        googleMapsEmbed: ''
     },
     flyers: [],
     orders: [],
@@ -132,6 +138,80 @@ function hasRole(...roles) {
     return roles.includes(storeState.currentRole);
 }
 
+
+function parseSocialLinks(raw) {
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw !== 'string' || !raw.trim()) return [];
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function normalizeConfig(config = {}) {
+    const merged = { ...storeState.config, ...(config || {}) };
+    merged.appName = String(merged.appName || 'Pañalería y Algo Más').trim() || 'Pañalería y Algo Más';
+    merged.appLogo = String(merged.appLogo || '').trim();
+    merged.appIcon = String(merged.appIcon || 'fa-solid fa-baby-carriage').trim() || 'fa-solid fa-baby-carriage';
+    merged.address = String(merged.address || '').trim();
+    merged.googleMapsEmbed = String(merged.googleMapsEmbed || '').trim();
+    merged.whatsappNumber = String(merged.whatsappNumber || '573001234567').trim() || '573001234567';
+    merged.socialLinks = parseSocialLinks(merged.socialLinks).filter(item => item && item.label && item.url);
+    return merged;
+}
+
+function applyBranding() {
+    const nameEl = document.getElementById('app-name');
+    const logoEl = document.getElementById('app-logo');
+    const iconEl = document.getElementById('app-icon');
+    const titleEl = document.getElementById('app-browser-title');
+    const appName = storeState.config.appName || 'Pañalería y Algo Más';
+
+    if (nameEl) nameEl.textContent = appName;
+    if (titleEl) titleEl.textContent = `${appName} | Tienda Online`;
+    if (logoEl) {
+        if (storeState.config.appLogo) {
+            logoEl.src = storeState.config.appLogo;
+            logoEl.classList.remove('hidden');
+            if (iconEl) iconEl.classList.add('hidden');
+        } else {
+            logoEl.classList.add('hidden');
+            if (iconEl) iconEl.classList.remove('hidden');
+        }
+    }
+    if (iconEl) {
+        iconEl.className = `${storeState.config.appIcon || 'fa-solid fa-baby-carriage'} text-baby-pink`;
+    }
+}
+
+function renderStoreContact() {
+    const address = document.getElementById('store-contact-address');
+    const social = document.getElementById('store-social-links');
+    const maps = document.getElementById('store-google-maps');
+    const mapsEmpty = document.getElementById('store-google-maps-empty');
+
+    if (address) address.textContent = storeState.config.address || 'Dirección no configurada.';
+    if (social) {
+        const links = Array.isArray(storeState.config.socialLinks) ? storeState.config.socialLinks : [];
+        social.innerHTML = links.length
+            ? links.map(link => `<a href="${link.url}" target="_blank" class="px-3 py-2 rounded-full bg-baby-blue-light text-sm"><i class="${link.icon || 'fa-solid fa-link'}"></i> ${link.label}</a>`).join('')
+            : '<p class="text-sm text-gray-500">No hay redes configuradas.</p>';
+    }
+
+    if (maps && mapsEmpty) {
+        if (storeState.config.googleMapsEmbed) {
+            maps.src = storeState.config.googleMapsEmbed;
+            maps.classList.remove('hidden');
+            mapsEmpty.classList.add('hidden');
+        } else {
+            maps.removeAttribute('src');
+            maps.classList.add('hidden');
+            mapsEmpty.classList.remove('hidden');
+        }
+    }
+}
 function openLoginModal() {
     const modal = document.getElementById('login-modal');
     if (modal) modal.classList.remove('hidden');
@@ -186,6 +266,7 @@ function applyRoleUI() {
     const ordersTab = document.getElementById('tab-orders');
     const flyersTab = document.getElementById('tab-flyers');
     const usersTab = document.getElementById('tab-users');
+    const settingsTab = document.getElementById('tab-settings');
     const tabsNav = document.getElementById('main-tabs-nav');
     const ordersSection = document.getElementById('admin-orders-section');
     const loginBtn = document.getElementById('auth-open-login');
@@ -201,6 +282,7 @@ function applyRoleUI() {
     if (ordersTab) ordersTab.classList.toggle('hidden', !isAdmin);
     if (flyersTab) flyersTab.classList.toggle('hidden', !isAdmin);
     if (usersTab) usersTab.classList.toggle('hidden', !isAdmin);
+    if (settingsTab) settingsTab.classList.toggle('hidden', !isAdmin);
     if (ordersSection) ordersSection.classList.toggle('hidden', !isAdmin);
 
     if (badge) {
@@ -223,7 +305,7 @@ async function initStore() {
     const data = await fetchJSON('/api/bootstrap');
     storeState.products = data.products || [];
     storeState.slides = data.slides || [];
-    storeState.config = { ...storeState.config, ...(data.config || {}) };
+    storeState.config = normalizeConfig(data.config || {});
     storeState.categories = data.categories || [];
 
     if (hasRole('admin')) {
@@ -243,6 +325,8 @@ async function initStore() {
         renderUsersTable();
     }
 
+    applyBranding();
+    renderStoreContact();
     renderSlider();
     renderCategoryFilters();
     renderProducts();
@@ -373,6 +457,7 @@ function showTab(tabName) {
     if (tabName === 'orders' && !hasRole('admin')) return;
     if (tabName === 'flyers' && !hasRole('admin')) return;
     if (tabName === 'users' && !hasRole('admin')) return;
+    if (tabName === 'settings' && !hasRole('admin')) return;
 
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.querySelectorAll('#main-tabs-nav button').forEach(el => el.classList.remove('active-tab'));
@@ -383,6 +468,7 @@ function showTab(tabName) {
         orders: 'section-orders',
         flyers: 'section-flyers',
         users: 'section-users',
+        settings: 'section-settings',
     };
     const tabMap = {
         store: 'tab-store',
@@ -390,6 +476,7 @@ function showTab(tabName) {
         orders: 'tab-orders',
         flyers: 'tab-flyers',
         users: 'tab-users',
+        settings: 'tab-settings',
     };
 
     const sectionId = sectionMap[tabName] || 'section-store';
@@ -407,6 +494,7 @@ function showTab(tabName) {
         showFlyerSubTab(flyerState.subTab || 'editor');
     }
     if (tabName === 'users') renderUsersTable();
+    if (tabName === 'settings') renderSettingsForm();
 }
 
 
@@ -1299,3 +1387,110 @@ initStore().catch(error => {
     console.error(error);
     alert(classifyInitError(error));
 });
+
+function renderSettingsForm() {
+    document.getElementById('settings-app-name').value = storeState.config.appName || '';
+    document.getElementById('settings-app-logo').value = storeState.config.appLogo || '';
+    document.getElementById('settings-app-icon').value = storeState.config.appIcon || '';
+    document.getElementById('settings-whatsapp').value = storeState.config.whatsappNumber || '';
+    document.getElementById('settings-address').value = storeState.config.address || '';
+    document.getElementById('settings-google-maps').value = storeState.config.googleMapsEmbed || '';
+
+    const linksWrap = document.getElementById('settings-social-links');
+    const links = Array.isArray(storeState.config.socialLinks) ? storeState.config.socialLinks : [];
+    linksWrap.innerHTML = links.map((item, idx) => socialLinkRowTemplate(item, idx)).join('');
+    if (!links.length) addSocialLinkRow();
+
+    renderSlidesEditor();
+}
+
+function socialLinkRowTemplate(item = {}, idx = Date.now()) {
+    return `<div class="grid grid-cols-12 gap-2" data-social-row="${idx}">
+        <input data-social-field="label" value="${item.label || ''}" class="col-span-3 p-2 border rounded-full" placeholder="Etiqueta">
+        <input data-social-field="url" value="${item.url || ''}" class="col-span-6 p-2 border rounded-full" placeholder="URL">
+        <input data-social-field="icon" value="${item.icon || 'fa-brands fa-instagram'}" class="col-span-2 p-2 border rounded-full" placeholder="Icono">
+        <button type="button" onclick="this.closest('[data-social-row]').remove()" class="col-span-1 text-red-500">✕</button>
+    </div>`;
+}
+
+function addSocialLinkRow() {
+    const linksWrap = document.getElementById('settings-social-links');
+    if (!linksWrap) return;
+    linksWrap.insertAdjacentHTML('beforeend', socialLinkRowTemplate({}, Date.now() + Math.random()));
+}
+
+function collectSocialLinks() {
+    return [...document.querySelectorAll('#settings-social-links [data-social-row]')].map(row => ({
+        label: row.querySelector('[data-social-field="label"]').value.trim(),
+        url: row.querySelector('[data-social-field="url"]').value.trim(),
+        icon: row.querySelector('[data-social-field="icon"]').value.trim() || 'fa-solid fa-link'
+    })).filter(item => item.label && item.url);
+}
+
+async function saveSettings() {
+    const payload = {
+        appName: document.getElementById('settings-app-name').value.trim(),
+        appLogo: document.getElementById('settings-app-logo').value.trim(),
+        appIcon: document.getElementById('settings-app-icon').value.trim(),
+        whatsappNumber: document.getElementById('settings-whatsapp').value.trim(),
+        address: document.getElementById('settings-address').value.trim(),
+        googleMapsEmbed: document.getElementById('settings-google-maps').value.trim(),
+        socialLinks: collectSocialLinks()
+    };
+
+    try {
+        const updated = await fetchJSON('/api/settings', { method: 'PATCH', body: JSON.stringify(payload) });
+        storeState.config = normalizeConfig(updated);
+        applyBranding();
+        renderStoreContact();
+        alert('Ajustes guardados correctamente.');
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+function renderSlidesEditor() {
+    const list = document.getElementById('settings-slides-list');
+    if (!list) return;
+    list.innerHTML = storeState.slides.map(slide => `<div class="grid lg:grid-cols-12 gap-2 items-center bg-baby-cream p-3 rounded-xl">
+        <input id="slide-image-${slide.id}" value="${slide.image}" class="lg:col-span-5 p-2 border rounded-full">
+        <input id="slide-text-${slide.id}" value="${slide.text}" class="lg:col-span-4 p-2 border rounded-full">
+        <input id="slide-order-${slide.id}" value="${slide.sort_order || 0}" type="number" class="lg:col-span-1 p-2 border rounded-full">
+        <button onclick="updateSlideItem(${slide.id})" class="lg:col-span-1 px-2 py-2 bg-baby-blue-light rounded-full">Guardar</button>
+        <button onclick="deleteSlideItem(${slide.id})" class="lg:col-span-1 px-2 py-2 bg-red-100 text-red-700 rounded-full">Borrar</button>
+    </div>`).join('');
+}
+
+async function createSlideFromForm() {
+    const image = document.getElementById('slide-form-image').value.trim();
+    const text = document.getElementById('slide-form-text').value.trim();
+    const sort_order = Number(document.getElementById('slide-form-order').value || 0);
+    try {
+        await fetchJSON('/api/slides', { method: 'POST', body: JSON.stringify({ image, text, sort_order }) });
+        storeState.slides = await fetchJSON('/api/slides');
+        renderSlidesEditor();
+        renderSlider();
+    } catch (error) { alert(error.message); }
+}
+
+async function updateSlideItem(id) {
+    const image = document.getElementById(`slide-image-${id}`).value.trim();
+    const text = document.getElementById(`slide-text-${id}`).value.trim();
+    const sort_order = Number(document.getElementById(`slide-order-${id}`).value || 0);
+    try {
+        await fetchJSON(`/api/slides/${id}`, { method: 'PATCH', body: JSON.stringify({ image, text, sort_order }) });
+        storeState.slides = await fetchJSON('/api/slides');
+        renderSlidesEditor();
+        renderSlider();
+    } catch (error) { alert(error.message); }
+}
+
+async function deleteSlideItem(id) {
+    if (!confirm('¿Eliminar slide?')) return;
+    try {
+        await fetchJSON(`/api/slides/${id}`, { method: 'DELETE' });
+        storeState.slides = await fetchJSON('/api/slides');
+        renderSlidesEditor();
+        renderSlider();
+    } catch (error) { alert(error.message); }
+}
