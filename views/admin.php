@@ -1,5 +1,5 @@
-<div id="section-admin" class="tab-content container mx-auto px-4 py-10 hidden">
-    <h2 class="text-3xl font-bold mb-8 text-center text-baby-text flex items-center justify-center gap-3">
+<div id="section-admin" class="tab-content container mx-auto px-4 py-10 hidden space-y-8">
+    <h2 class="text-3xl font-bold text-center text-baby-text flex items-center justify-center gap-3">
         <i class="fa-solid fa-user-gear text-baby-pink"></i>
         Panel de Administración
     </h2>
@@ -18,6 +18,28 @@
         <div class="md:col-span-2 bg-white p-6 rounded-3xl shadow-lg border-2 border-baby-blue-light">
             <h3 class="text-xl font-bold text-baby-text mb-4"><i class="fa-solid fa-list text-baby-blue"></i> Productos Actuales</h3>
             <div id="admin-product-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-2"></div>
+        </div>
+    </div>
+
+    <div class="bg-white p-6 rounded-3xl shadow-lg border-2 border-baby-blue-light">
+        <h3 class="text-xl font-bold text-baby-text mb-4"><i class="fa-solid fa-box text-baby-pink"></i> Pedidos</h3>
+        <div class="grid lg:grid-cols-4 gap-4" id="orders-kanban">
+            <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
+                <h4 class="font-bold mb-3">Nuevo</h4>
+                <div id="orders-col-nuevo" class="space-y-3"></div>
+            </div>
+            <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
+                <h4 class="font-bold mb-3">En preparación</h4>
+                <div id="orders-col-en_preparacion" class="space-y-3"></div>
+            </div>
+            <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
+                <h4 class="font-bold mb-3">En viaje</h4>
+                <div id="orders-col-en_viaje" class="space-y-3"></div>
+            </div>
+            <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
+                <h4 class="font-bold mb-3">Entregado</h4>
+                <div id="orders-col-entregado" class="space-y-3"></div>
+            </div>
         </div>
     </div>
 </div>

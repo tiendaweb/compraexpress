@@ -5,7 +5,8 @@ const storeState = {
         whatsappNumber: '573001234567',
         currency: '$'
     },
-    flyers: []
+    flyers: [],
+    orders: []
 };
 
 const flyerState = {
@@ -36,6 +37,7 @@ async function initStore() {
     storeState.config = { ...storeState.config, ...(data.config || {}) };
 
     await initFlyers();
+    await loadOrders();
     renderSlider();
     renderProducts();
     updateCartUI();
@@ -70,7 +72,51 @@ function addToCart(id) { const product = storeState.products.find(p => Number(p.
 function removeFromCart(id) { cart = cart.filter(item => Number(item.id) !== Number(id)); updateCartUI(); }
 function updateCartUI() { const list = document.getElementById('cart-items'); const countLabel = document.getElementById('cart-count'); const totalLabel = document.getElementById('cart-total'); list.innerHTML = ''; let total = 0; let count = 0; cart.forEach(item => { total += Number(item.price) * item.qty; count += item.qty; list.innerHTML += `<div class="flex items-center gap-3 bg-white p-3 rounded-2xl shadow border border-baby-blue-light"><img src="${item.img}" class="w-16 h-16 object-contain rounded-lg bg-baby-cream"><div class="flex-1"><p class="text-sm font-bold text-baby-text">${item.name}</p><p class="text-xs text-gray-500">${item.qty} x ${storeState.config.currency}${Number(item.price).toLocaleString()}</p></div><button onclick="removeFromCart(${item.id})" class="text-red-300 p-2 hover:text-red-500"><i class="fa-solid fa-trash-can text-lg"></i></button></div>`; }); countLabel.innerText = count; totalLabel.innerText = `${storeState.config.currency}${total.toLocaleString()}`; }
 
-function sendOrder() { const name = document.getElementById('cust-name').value; const address = document.getElementById('cust-address').value; if (cart.length === 0) return alert('¡El carrito está vacío, dulzura!'); if (!name || !address) return alert('Por favor, completa tus datos para el envío'); let message = `*Nuevo Pedido - Pañalería y Algo Más*%0A%0A`; message += `*Cliente:* ${name}%0A`; message += `*Dirección:* ${address}%0A%0A`; message += '*Productos:*%0A'; cart.forEach(item => { message += `- ${item.qty}x ${item.name} (${storeState.config.currency}${Number(item.price) * item.qty})%0A`; }); const total = document.getElementById('cart-total').innerText; message += `%0A*TOTAL: ${total}*`; window.open(`https://wa.me/${storeState.config.whatsappNumber}?text=${message}`, '_blank'); }
+async function sendOrder() {
+    const name = document.getElementById('cust-name').value.trim();
+    const address = document.getElementById('cust-address').value.trim();
+
+    if (cart.length === 0) return alert('¡El carrito está vacío, dulzura!');
+    if (!address) return alert('Por favor, agrega la dirección de envío.');
+
+    const totalNumber = cart.reduce((sum, item) => sum + (Number(item.price) * item.qty), 0);
+
+    let message = `*Nuevo Pedido - Pañalería y Algo Más*\n\n`;
+    if (name) message += `*Cliente:* ${name}\n`;
+    message += `*Dirección:* ${address}\n\n`;
+    message += '*Productos:*\n';
+    cart.forEach(item => {
+        message += `- ${item.qty}x ${item.name} (${storeState.config.currency}${(Number(item.price) * item.qty).toLocaleString()})\n`;
+    });
+    message += `\n*TOTAL: ${storeState.config.currency}${totalNumber.toLocaleString()}*`;
+
+    const payload = {
+        customer_name: name || null,
+        whatsapp_payload: message,
+        total: totalNumber,
+        items: cart.map(item => ({
+            product_id: Number(item.id),
+            name_snapshot: item.name,
+            price_snapshot: Number(item.price),
+            qty: item.qty
+        }))
+    };
+
+    try {
+        const order = await fetchJSON('/api/orders', { method: 'POST', body: JSON.stringify(payload) });
+        const encodedMessage = encodeURIComponent(order.whatsapp_payload);
+        window.open(`https://wa.me/${storeState.config.whatsappNumber}?text=${encodedMessage}`, '_blank');
+
+        cart = [];
+        document.getElementById('cust-name').value = '';
+        document.getElementById('cust-address').value = '';
+        updateCartUI();
+        await loadOrders();
+        renderOrdersKanban();
+    } catch (error) {
+        alert(error.message);
+    }
+}
 
 function showTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
@@ -85,9 +131,67 @@ function showTab(tabName) {
     if (tabName === 'flyers') renderFlyerBuilder();
 }
 
-function renderAdminList() { const list = document.getElementById('admin-product-list'); list.innerHTML = ''; storeState.products.forEach(p => { list.innerHTML += `<div class="flex items-center gap-3 bg-baby-cream p-3 rounded-xl border border-baby-blue-light hover:border-baby-blue"><img src="${p.img}" class="w-12 h-12 object-contain bg-white rounded-lg"><div class="flex-1"><p class="font-bold text-sm text-baby-text">${p.name}</p><p class="text-xs text-baby-pink font-bold">${storeState.config.currency}${Number(p.price).toLocaleString()}</p></div><button onclick="adminDeleteProduct(${p.id})" class="text-red-400 p-2 hover:text-red-600 active:scale-95"><i class="fa-solid fa-trash-can"></i></button></div>`; }); }
+function renderAdminList() {
+    const list = document.getElementById('admin-product-list');
+    list.innerHTML = '';
+    storeState.products.forEach(p => {
+        list.innerHTML += `<div class="flex items-center gap-3 bg-baby-cream p-3 rounded-xl border border-baby-blue-light hover:border-baby-blue"><img src="${p.img}" class="w-12 h-12 object-contain bg-white rounded-lg"><div class="flex-1"><p class="font-bold text-sm text-baby-text">${p.name}</p><p class="text-xs text-baby-pink font-bold">${storeState.config.currency}${Number(p.price).toLocaleString()}</p></div><button onclick="adminDeleteProduct(${p.id})" class="text-red-400 p-2 hover:text-red-600 active:scale-95"><i class="fa-solid fa-trash-can"></i></button></div>`;
+    });
+
+    renderOrdersKanban();
+}
 async function adminAddProduct() { const nameInput = document.getElementById('admin-prod-name'); const priceInput = document.getElementById('admin-prod-price'); const imgInput = document.getElementById('admin-prod-img'); try { await fetchJSON('/api/products', { method: 'POST', body: JSON.stringify({ name: nameInput.value, price: parseInt(priceInput.value, 10), img: imgInput.value }) }); nameInput.value = ''; priceInput.value = ''; imgInput.value = ''; await initStore(); renderAdminList(); alert('¡Producto añadido con éxito!'); } catch (error) { alert(error.message); } }
 async function adminDeleteProduct(id) { if (!confirm('¿Estás seguro de eliminar este producto?')) return; try { await fetchJSON(`/api/products/${id}`, { method: 'DELETE' }); cart = cart.filter(item => Number(item.id) !== Number(id)); await initStore(); renderAdminList(); } catch (error) { alert(error.message); } }
+
+
+
+async function loadOrders() {
+    try {
+        storeState.orders = await fetchJSON('/api/orders');
+    } catch (error) {
+        console.error(error);
+        storeState.orders = [];
+    }
+}
+
+function formatOrderTime(createdAt) {
+    const date = new Date(createdAt);
+    if (Number.isNaN(date.getTime())) return createdAt;
+    return date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+}
+
+function orderItemsSummary(items) {
+    return items.map(item => `${item.qty}x ${item.name_snapshot}`).join(', ');
+}
+
+async function updateOrderStatus(orderId, status) {
+    try {
+        await fetchJSON(`/api/orders/${orderId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+        await loadOrders();
+        renderOrdersKanban();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+function renderOrdersKanban() {
+    const statuses = ['nuevo', 'en_preparacion', 'en_viaje', 'entregado'];
+    statuses.forEach(status => {
+        const column = document.getElementById(`orders-col-${status}`);
+        if (!column) return;
+        column.innerHTML = '';
+
+        storeState.orders
+            .filter(order => order.status === status)
+            .forEach(order => {
+                const nextStatuses = statuses.filter(candidate => candidate !== order.status)
+                    .map(candidate => `<button onclick="updateOrderStatus(${order.id}, '${candidate}')" class="px-2 py-1 text-xs rounded-full bg-white border border-baby-blue-light hover:border-baby-blue">${candidate.replace('_', ' ')}</button>`)
+                    .join('');
+
+                column.innerHTML += `<div class="bg-white rounded-xl p-3 border border-baby-blue-light shadow-sm space-y-2"><div class="text-xs text-gray-500">#${order.id} · ${formatOrderTime(order.created_at)}</div><div class="font-bold text-sm">${order.customer_name || 'Cliente sin nombre'}</div><div class="text-xs text-gray-600">${orderItemsSummary(order.items)}</div><div class="text-sm font-bold text-baby-pink">${storeState.config.currency}${Number(order.total).toLocaleString()}</div><a href="https://wa.me/${storeState.config.whatsappNumber}?text=${encodeURIComponent(order.whatsapp_payload)}" target="_blank" class="inline-flex items-center gap-2 text-xs bg-baby-green px-2 py-1 rounded-full"><i class="fa-brands fa-whatsapp"></i> Abrir WhatsApp</a><div class="flex flex-wrap gap-1">${nextStatuses}</div></div>`;
+            });
+    });
+}
 
 async function initFlyers() {
     storeState.flyers = await fetchJSON('/api/flyers');

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Repositories\FlyerRepository;
+use App\Repositories\OrderRepository;
 use App\Repositories\ProductRepository;
 use App\Repositories\SettingRepository;
 use App\Repositories\SlideRepository;
@@ -16,6 +17,7 @@ class ApiController
         private readonly SlideRepository $slides,
         private readonly SettingRepository $settings,
         private readonly FlyerRepository $flyers,
+        private readonly OrderRepository $orders,
     ) {
     }
 
@@ -126,6 +128,70 @@ class ApiController
         $this->json($this->flyers->create($title, $layoutJson, $productId), 201);
     }
 
+
+    public function createOrder(): void
+    {
+        $data = json_decode((string) file_get_contents('php://input'), true);
+
+        $customerName = trim((string) ($data['customer_name'] ?? ''));
+        $customerName = $customerName === '' ? null : $customerName;
+        $whatsappPayload = (string) ($data['whatsapp_payload'] ?? '');
+        $total = (int) ($data['total'] ?? 0);
+        $items = is_array($data['items'] ?? null) ? $data['items'] : [];
+
+        if ($whatsappPayload === '' || $total <= 0 || $items === []) {
+            $this->json(['error' => 'Payload de WhatsApp, total e ítems son obligatorios.'], 422);
+            return;
+        }
+
+        $normalizedItems = [];
+        foreach ($items as $item) {
+            $name = trim((string) ($item['name_snapshot'] ?? ''));
+            $price = (int) ($item['price_snapshot'] ?? 0);
+            $qty = (int) ($item['qty'] ?? 0);
+            $productId = isset($item['product_id']) && $item['product_id'] !== null ? (int) $item['product_id'] : null;
+
+            if ($name === '' || $price <= 0 || $qty <= 0) {
+                $this->json(['error' => 'Cada ítem requiere nombre, precio y cantidad válidos.'], 422);
+                return;
+            }
+
+            $normalizedItems[] = [
+                'product_id' => $productId,
+                'name_snapshot' => $name,
+                'price_snapshot' => $price,
+                'qty' => $qty,
+            ];
+        }
+
+        $order = $this->orders->create($customerName, $whatsappPayload, $total, $normalizedItems);
+        $this->json($order, 201);
+    }
+
+    public function getOrders(): void
+    {
+        $this->json($this->orders->allActiveWithItems());
+    }
+
+    public function updateOrderStatus(int $id): void
+    {
+        $data = json_decode((string) file_get_contents('php://input'), true);
+        $status = trim((string) ($data['status'] ?? ''));
+        $allowedStatuses = ['nuevo', 'en_preparacion', 'en_viaje', 'entregado'];
+
+        if (!in_array($status, $allowedStatuses, true)) {
+            $this->json(['error' => 'Estado inválido.'], 422);
+            return;
+        }
+
+        $order = $this->orders->updateStatus($id, $status);
+        if ($order === null) {
+            $this->json(['error' => 'Pedido no encontrado.'], 404);
+            return;
+        }
+
+        $this->json($order);
+    }
     private function json(array $data, int $status = 200): void
     {
         http_response_code($status);
