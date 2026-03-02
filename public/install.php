@@ -58,7 +58,6 @@ function handleInstall(string $configPath, string $migrationPath, string $basePa
 
     try {
         $pdo = createPdo($dbConfig);
-        $pdo->beginTransaction();
 
         $sql = file_get_contents($migrationPath);
         if ($sql === false) {
@@ -66,6 +65,8 @@ function handleInstall(string $configPath, string $migrationPath, string $basePa
         }
 
         $pdo->exec($sql);
+
+        $pdo->beginTransaction();
 
         $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, role) VALUES (:name, :email, :password_hash, :role) ON DUPLICATE KEY UPDATE name = VALUES(name), password_hash = VALUES(password_hash), role = VALUES(role)');
         $stmt->execute([
@@ -81,7 +82,9 @@ function handleInstall(string $configPath, string $migrationPath, string $basePa
             ':value' => $old['app_name'],
         ]);
 
-        $pdo->commit();
+        if ($pdo->inTransaction()) {
+            $pdo->commit();
+        }
 
         writeConfigFile($configPath, $dbConfig, $old['app_name']);
     } catch (Throwable $e) {
