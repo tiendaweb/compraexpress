@@ -9,6 +9,7 @@ use App\Repositories\OrderRepository;
 use App\Repositories\ProductRepository;
 use App\Repositories\SettingRepository;
 use App\Repositories\SlideRepository;
+use App\Repositories\UserRepository;
 
 $root = dirname(__DIR__);
 $configPath = $root . '/config/config.php';
@@ -18,6 +19,20 @@ $scriptDir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
 $basePath = $scriptDir === '/' || $scriptDir === '.' ? '' : rtrim($scriptDir, '/');
 $path = normalizePath($requestPath, $basePath);
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+
+$secureCookie = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ((int) ($_SERVER['SERVER_PORT'] ?? 0) === 443);
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'domain' => '',
+    'secure' => $secureCookie,
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
+session_name('compraexpress_session');
+session_start();
+
 
 require_once $root . '/app/Install/InstallationState.php';
 
@@ -47,11 +62,28 @@ if (str_starts_with($path, '/api/')) {
         new SettingRepository(db()),
         new FlyerRepository(db()),
         new OrderRepository(db()),
-        new MediaRepository(db())
+        new MediaRepository(db()),
+        new UserRepository(db())
     );
 
     if ($method === 'GET' && $path === '/api/bootstrap') {
         $controller->bootstrap();
+        return;
+    }
+
+
+    if ($method === 'GET' && $path === '/api/auth/me') {
+        $controller->me();
+        return;
+    }
+
+    if ($method === 'POST' && $path === '/api/auth/login') {
+        $controller->login();
+        return;
+    }
+
+    if ($method === 'POST' && $path === '/api/auth/logout') {
+        $controller->logout();
         return;
     }
 
@@ -223,10 +255,17 @@ function appUrl(string $basePath, string $path): string
             <i class="fa-solid fa-baby-carriage text-baby-pink"></i>
             <span>Pañalería <span class="text-baby-blue font-light">& Más</span></span>
         </h1>
-        <button onclick="toggleCart()" class="relative p-3 bg-baby-pink rounded-full text-white hover:scale-105 transition">
+
+        <div class="flex items-center gap-3">
+            <div id="auth-user-badge" class="hidden text-sm bg-baby-blue-light px-3 py-1 rounded-full"></div>
+            <button id="auth-open-login" onclick="openLoginModal()" class="px-3 py-2 bg-baby-blue text-baby-text rounded-full font-semibold hover:bg-sky-200 transition">Iniciar sesión</button>
+            <button id="auth-logout" onclick="logout()" class="hidden px-3 py-2 bg-slate-200 text-slate-700 rounded-full font-semibold hover:bg-slate-300 transition">Cerrar sesión</button>
+            <button onclick="toggleCart()" class="relative p-3 bg-baby-pink rounded-full text-white hover:scale-105 transition">
+
             <i class="fa-solid fa-cart-shopping text-xl"></i>
             <span id="cart-count" class="absolute -top-1 -right-1 bg-white text-baby-pink text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-baby-pink">0</span>
         </button>
+        </div>
     </div>
 
     <nav class="bg-white border-t border-baby-blue-light">
@@ -270,6 +309,21 @@ function appUrl(string $basePath, string $path): string
                 <i class="fa-brands fa-whatsapp text-2xl"></i> Enviar Pedido
             </button>
         </div>
+    </div>
+</div>
+
+
+<div id="login-modal" class="fixed inset-0 bg-black/50 z-[80] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-bold">Acceso administrativo</h3>
+            <button onclick="closeLoginModal()" class="text-2xl leading-none">&times;</button>
+        </div>
+        <form onsubmit="event.preventDefault(); login();" class="space-y-3">
+            <input id="login-email" type="email" placeholder="Email" class="w-full border rounded-full p-3" required>
+            <input id="login-password" type="password" placeholder="Contraseña" class="w-full border rounded-full p-3" required>
+            <button type="submit" class="w-full bg-baby-pink text-white rounded-full py-3 font-bold">Entrar</button>
+        </form>
     </div>
 </div>
 

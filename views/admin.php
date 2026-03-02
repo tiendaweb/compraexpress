@@ -4,7 +4,7 @@
         Panel de Administración
     </h2>
 
-    <div class="grid md:grid-cols-3 gap-8">
+    <div id="admin-products-section" class="grid md:grid-cols-3 gap-8">
         <div class="bg-white p-6 rounded-3xl shadow-lg border-2 border-baby-blue-light space-y-4">
             <h3 class="text-xl font-bold text-baby-text"><i class="fa-solid fa-plus-circle text-baby-green"></i> Agregar Nuevo Producto</h3>
             <input type="text" id="admin-prod-name" placeholder="Nombre del producto" class="w-full p-3 border rounded-full bg-baby-cream focus:ring-2 focus:ring-baby-pink outline-none">
@@ -35,7 +35,7 @@
         </div>
     </div>
 
-    <div class="bg-white p-6 rounded-3xl shadow-lg border-2 border-baby-blue-light">
+    <div id="admin-orders-section" class="bg-white p-6 rounded-3xl shadow-lg border-2 border-baby-blue-light">
         <h3 class="text-xl font-bold text-baby-text mb-4"><i class="fa-solid fa-box text-baby-pink"></i> Pedidos</h3>
         <div class="grid lg:grid-cols-5 gap-4" id="orders-kanban">
             <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">

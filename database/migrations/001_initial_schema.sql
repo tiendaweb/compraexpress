@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
     name VARCHAR(120) NOT NULL,
     email VARCHAR(160) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(40) NOT NULL DEFAULT 'admin',
+    role ENUM('admin','gestion') NOT NULL DEFAULT 'gestion',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -115,3 +115,9 @@ INSERT INTO products (name, price, img) VALUES
     ('Toallitas Húmedas Aloe x80', 9500, 'https://via.placeholder.com/300x300/f8bbd0/546e7a?text=Toallitas'),
     ('Crema Antipañalitis 110g', 3400, 'https://via.placeholder.com/300x300/c8e6c9/546e7a?text=%C3%93leo')
 ON DUPLICATE KEY UPDATE price = VALUES(price), img = VALUES(img);
+
+
+INSERT INTO users (name, email, password_hash, role) VALUES
+    ('Administrador', 'admin@compraexpress.local', '$2y$10$Nrh5Tla4e9TLTHfOqefYJ.gSk3jfbQfVIAtF5NCz7L3A2kZZgwyU6', 'admin'),
+    ('Gestión Productos', 'gestion@compraexpress.local', '$2y$10$Nrh5Tla4e9TLTHfOqefYJ.gSk3jfbQfVIAtF5NCz7L3A2kZZgwyU6', 'gestion')
+ON DUPLICATE KEY UPDATE name = VALUES(name), role = VALUES(role);
