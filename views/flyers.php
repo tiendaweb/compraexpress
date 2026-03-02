@@ -15,12 +15,21 @@
             </div>
             <button onclick="flyerApplyProductToSelected()" class="w-full bg-baby-pink text-white py-2 rounded-full font-bold">Autocompletar elemento</button>
             <button onclick="flyerSave()" class="w-full bg-baby-green py-3 rounded-full font-bold">Guardar flyer</button>
+            <button onclick="flyerExportCurrent()" id="flyer-export-btn" class="w-full bg-baby-blue py-3 rounded-full font-bold">Exportar PNG</button>
             <button onclick="flyerNew()" class="w-full border py-2 rounded-full font-bold">Nuevo</button>
+            <p class="text-xs text-gray-500">Rol actual: <span id="flyer-current-role">admin</span></p>
         </div>
 
         <div class="lg:col-span-2 bg-white p-5 rounded-3xl shadow-lg border-2 border-baby-blue-light">
             <div id="flyer-canvas" class="relative w-full h-[520px] bg-baby-cream rounded-2xl border border-baby-blue-light"></div>
             <div id="flyer-elements" class="mt-4 space-y-2 max-h-48 overflow-y-auto"></div>
+
+            <div class="mt-6">
+                <h3 class="font-bold text-lg mb-3">Exportaciones previas</h3>
+                <div id="flyer-export-list" class="space-y-2 text-sm text-gray-600">
+                    <p>No hay exportaciones registradas.</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>

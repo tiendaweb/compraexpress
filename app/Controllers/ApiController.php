@@ -213,6 +213,71 @@ class ApiController
     }
 
 
+    public function exportFlyer(int $id): void
+    {
+        $this->enforceRole(['admin', 'marketing']);
+
+        $flyer = $this->flyers->find($id);
+        if ($flyer === null) {
+            $this->json(['error' => 'Flyer no encontrado.'], 404);
+            return;
+        }
+
+        $data = json_decode((string) file_get_contents('php://input'), true);
+        $imagePayload = trim((string) ($data['image'] ?? ''));
+        $exportedBy = trim((string) ($data['exported_by'] ?? $this->resolveRole()));
+        $exportedBy = $exportedBy === '' ? null : $exportedBy;
+
+        if (!preg_match('#^data:image/png;base64,#', $imagePayload)) {
+            $this->json(['error' => 'La imagen debe enviarse en formato PNG base64 (data URL).'], 422);
+            return;
+        }
+
+        $base64 = substr($imagePayload, strpos($imagePayload, ',') + 1);
+        $binary = base64_decode($base64, true);
+
+        if ($binary === false || $binary === '') {
+            $this->json(['error' => 'No se pudo decodificar la imagen.'], 422);
+            return;
+        }
+
+        $relativeDir = '/flyers/' . date('Y') . '/' . date('m');
+        $storageDir = dirname(__DIR__, 2) . '/storage' . $relativeDir;
+        if (!is_dir($storageDir) && !mkdir($storageDir, 0775, true) && !is_dir($storageDir)) {
+            $this->json(['error' => 'No fue posible crear la carpeta para exportaciones de flyers.'], 500);
+            return;
+        }
+
+        $fileName = 'flyer_' . $id . '_' . date('Ymd_His') . '_' . bin2hex(random_bytes(5)) . '.png';
+        $target = $storageDir . '/' . $fileName;
+        if (file_put_contents($target, $binary) === false) {
+            $this->json(['error' => 'No fue posible guardar la exportación del flyer.'], 500);
+            return;
+        }
+
+        $publicPath = $relativeDir . '/' . $fileName;
+        $export = $this->flyers->createExport($id, $publicPath, 'image/png', strlen($binary), $exportedBy);
+
+        $this->json([
+            'ok' => true,
+            'export' => $export,
+            'download_url' => $publicPath,
+        ], 201);
+    }
+
+    public function listFlyerExports(int $id): void
+    {
+        $this->enforceRole(['admin', 'marketing']);
+
+        $flyer = $this->flyers->find($id);
+        if ($flyer === null) {
+            $this->json(['error' => 'Flyer no encontrado.'], 404);
+            return;
+        }
+
+        $this->json($this->flyers->exportsByFlyer($id));
+    }
+
     public function createOrder(): void
     {
         $data = json_decode((string) file_get_contents('php://input'), true);
@@ -310,6 +375,28 @@ class ApiController
         }
 
         $this->json($order);
+    }
+
+
+    private function enforceRole(array $allowedRoles): void
+    {
+        $role = $this->resolveRole();
+        if (!in_array($role, $allowedRoles, true)) {
+            $this->json(['error' => 'No tienes permisos para realizar esta acción.'], 403);
+            exit;
+        }
+    }
+
+    private function resolveRole(): string
+    {
+        $headerRole = trim((string) ($_SERVER['HTTP_X_USER_ROLE'] ?? ''));
+        $headerRole = strtolower($headerRole);
+
+        if ($headerRole !== '') {
+            return $headerRole;
+        }
+
+        return 'admin';
     }
 
     private function isInstallationSchemaError(PDOException $exception): bool

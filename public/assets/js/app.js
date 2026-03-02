@@ -6,7 +6,8 @@ const storeState = {
         currency: '$'
     },
     flyers: [],
-    orders: []
+    orders: [],
+    currentRole: (localStorage.getItem('currentUserRole') || 'admin').toLowerCase()
 };
 
 const flyerState = {
@@ -27,10 +28,16 @@ function appUrl(path) {
 }
 
 async function fetchJSON(url, options = {}) {
-    const headers = options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' };
+    const baseHeaders = options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' };
+    const headers = {
+        ...baseHeaders,
+        'X-User-Role': storeState.currentRole,
+        ...(options.headers || {}),
+    };
+
     const response = await fetch(appUrl(url), {
-        headers,
-        ...options
+        ...options,
+        headers
     });
 
     const payload = await response.json().catch(() => null);
@@ -343,6 +350,11 @@ async function initFlyers() {
         } catch (_) {}
     }
     renderFlyerSelectors();
+    if (flyerState.id) {
+        await loadFlyerExports(flyerState.id);
+    } else {
+        renderFlyerExports([]);
+    }
 }
 
 function renderFlyerSelectors() {
@@ -365,6 +377,7 @@ function renderFlyerSelectors() {
         flyerState.elements = JSON.parse(data.layout_json || '[]');
         flyerState.selectedElementId = flyerState.elements[0]?.id || null;
         renderFlyerBuilder();
+        await loadFlyerExports(flyerState.id);
     };
 }
 
@@ -375,6 +388,7 @@ function flyerNew() {
     flyerState.elements = [];
     flyerState.selectedElementId = null;
     renderFlyerBuilder();
+    renderFlyerExports([]);
 }
 
 function flyerAddElement(type) {
@@ -424,6 +438,9 @@ function renderFlyerBuilder() {
         elementsList.innerHTML += `<div class="p-2 rounded-xl border ${flyerState.selectedElementId === el.id ? 'border-baby-pink' : 'border-baby-blue-light'}"><div class="text-xs mb-1">${el.type.toUpperCase()}</div><input class="w-full p-2 border rounded" value="${el.value}" oninput="flyerUpdateElement('${el.id}', this.value)"></div>`;
     });
 
+    const roleLabel = document.getElementById('flyer-current-role');
+    if (roleLabel) roleLabel.textContent = storeState.currentRole;
+
     cacheFlyerDraft();
 }
 
@@ -443,7 +460,98 @@ async function flyerSave() {
     flyerState.id = Number(saved.id);
     localStorage.setItem('flyerDraftCache', JSON.stringify(flyerState));
     await initFlyers();
+    await loadFlyerExports(flyerState.id);
     alert('Flyer guardado en base de datos.');
+}
+
+
+function canExportFlyers() {
+    return ['admin', 'marketing'].includes(storeState.currentRole);
+}
+
+async function flyerExportCurrent() {
+    if (!flyerState.id) {
+        alert('Primero guarda el flyer antes de exportar.');
+        return;
+    }
+
+    if (!canExportFlyers()) {
+        alert('Tu rol no tiene permisos para exportar flyers.');
+        return;
+    }
+
+    const canvasNode = document.getElementById('flyer-canvas');
+    if (!canvasNode || !window.html2canvas) {
+        alert('No se pudo inicializar html2canvas para exportar.');
+        return;
+    }
+
+    try {
+        const renderedCanvas = await window.html2canvas(canvasNode, { backgroundColor: '#fffaf0', useCORS: true, scale: 2 });
+        const pngDataUrl = renderedCanvas.toDataURL('image/png');
+        autoDownloadFlyer(pngDataUrl, `flyer-${flyerState.id}-${Date.now()}.png`);
+
+        await fetchJSON(`/api/flyers/${flyerState.id}/export`, {
+            method: 'POST',
+            body: JSON.stringify({
+                image: pngDataUrl,
+                exported_by: storeState.currentRole,
+            }),
+        });
+
+        await loadFlyerExports(flyerState.id);
+        alert('Flyer exportado y respaldado en el servidor.');
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+function autoDownloadFlyer(dataUrl, filename) {
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+async function loadFlyerExports(flyerId) {
+    if (!flyerId) {
+        renderFlyerExports([]);
+        return;
+    }
+
+    try {
+        const exports = await fetchJSON(`/api/flyers/${flyerId}/exports`);
+        renderFlyerExports(exports);
+    } catch (error) {
+        renderFlyerExports([], error.message);
+    }
+}
+
+function renderFlyerExports(items, errorMessage = '') {
+    const list = document.getElementById('flyer-export-list');
+    const roleLabel = document.getElementById('flyer-current-role');
+    const exportButton = document.getElementById('flyer-export-btn');
+    if (!list) return;
+
+    if (roleLabel) roleLabel.textContent = storeState.currentRole;
+    if (exportButton) exportButton.disabled = !canExportFlyers();
+
+    if (errorMessage) {
+        list.innerHTML = `<p class="text-red-500">${errorMessage}</p>`;
+        return;
+    }
+
+    if (!items.length) {
+        list.innerHTML = '<p>No hay exportaciones registradas.</p>';
+        return;
+    }
+
+    list.innerHTML = items.map(item => {
+        const fileName = String(item.file_path || '').split('/').pop();
+        return `<div class="flex items-center justify-between border border-baby-blue-light rounded-xl p-2"><div><p class="font-semibold">${fileName}</p><p class="text-xs text-gray-500">${item.created_at}</p></div><a class="px-3 py-1 rounded-full bg-baby-green font-bold" href="${item.file_path}" download>Descargar</a></div>`;
+    }).join('');
 }
 
 
