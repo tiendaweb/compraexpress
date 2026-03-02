@@ -19,6 +19,8 @@ $basePath = $scriptDir === '/' || $scriptDir === '.' ? '' : rtrim($scriptDir, '/
 $path = normalizePath($requestPath, $basePath);
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
+require_once $root . '/app/Install/InstallationState.php';
+
 if (!isValidInstallation($configPath)) {
     header('Location: ' . appUrl($basePath, '/install.php'));
     exit;
@@ -129,26 +131,6 @@ function ensurePublicUploadsSymlink(string $root): void
     @symlink($storageUploads, $publicUploads);
 }
 
-function isValidInstallation(string $configPath): bool
-{
-    if (!file_exists($configPath)) {
-        return false;
-    }
-
-    $config = require $configPath;
-    if (!is_array($config) || !isset($config['db']) || !is_array($config['db'])) {
-        return false;
-    }
-
-    try {
-        createPdo($config['db']);
-    } catch (\PDOException) {
-        return false;
-    }
-
-    return true;
-}
-
 function normalizePath(string $requestPath, string $basePath): string
 {
     if ($basePath === '') {
@@ -172,21 +154,6 @@ function appUrl(string $basePath, string $path): string
     return ($basePath === '' ? '' : $basePath) . $normalizedPath;
 }
 
-function createPdo(array $db): PDO
-{
-    $dsn = sprintf(
-        'mysql:host=%s;port=%d;dbname=%s;charset=%s',
-        $db['host'],
-        $db['port'],
-        $db['name'],
-        $db['charset'] ?? 'utf8mb4'
-    );
-
-    return new PDO($dsn, (string) $db['user'], (string) $db['pass'], [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
-}
 ?>
 <!DOCTYPE html>
 <html lang="es">
