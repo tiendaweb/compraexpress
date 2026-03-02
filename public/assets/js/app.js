@@ -1,6 +1,9 @@
 const storeState = {
     products: [],
     slides: [],
+    categories: [],
+    storeCategoryFilter: '',
+    adminCategoryFilter: '',
     config: {
         whatsappNumber: '573001234567',
         currency: '$'
@@ -208,6 +211,7 @@ async function initStore() {
     storeState.products = data.products || [];
     storeState.slides = data.slides || [];
     storeState.config = { ...storeState.config, ...(data.config || {}) };
+    storeState.categories = data.categories || [];
 
     if (hasRole('admin')) {
         await initFlyers();
@@ -223,6 +227,7 @@ async function initStore() {
     }
 
     renderSlider();
+    renderCategoryFilters();
     renderProducts();
     updateCartUI();
 }
@@ -246,11 +251,49 @@ function renderSlider() { /* unchanged behavior */
 function renderProducts() {
     const grid = document.getElementById('product-grid');
     grid.innerHTML = '';
-    storeState.products.forEach(p => {
-        grid.innerHTML += `<div class="bg-white p-4 rounded-3xl shadow-md product-card border-2 border-baby-blue-light flex flex-col"><div class="w-full h-36 bg-baby-cream rounded-2xl mb-4 flex items-center justify-center overflow-hidden"><img src="${p.img}" class="h-full object-contain"></div><h3 class="text-base font-semibold text-baby-text h-12 overflow-hidden">${p.name}</h3><p class="text-2xl font-bold text-baby-pink mt-2">${storeState.config.currency}${Number(p.price).toLocaleString()}</p><button onclick="addToCart(${p.id})" class="mt-4 w-full bg-baby-green text-baby-text py-3 rounded-full text-sm font-bold hover:bg-green-300 active:scale-95 transition flex items-center justify-center gap-2"><i class="fa-solid fa-plus-circle"></i> Agregar</button></div>`;
+
+    const filteredProducts = storeState.products.filter(product => {
+        if (!storeState.storeCategoryFilter) return true;
+        return Number(product.category_id) === Number(storeState.storeCategoryFilter);
+    });
+
+    filteredProducts.forEach(p => {
+        const category = p.category_name ? `<p class="text-xs text-gray-500">${p.category_name}</p>` : '';
+        grid.innerHTML += `<div class="bg-white p-4 rounded-3xl shadow-md product-card border-2 border-baby-blue-light flex flex-col"><div class="w-full h-36 bg-baby-cream rounded-2xl mb-4 flex items-center justify-center overflow-hidden"><img src="${p.img}" class="h-full object-contain"></div><h3 class="text-base font-semibold text-baby-text">${p.name}</h3>${category}<p class="text-2xl font-bold text-baby-pink mt-2">${storeState.config.currency}${Number(p.price).toLocaleString()}</p><button onclick="addToCart(${p.id})" class="mt-4 w-full bg-baby-green text-baby-text py-3 rounded-full text-sm font-bold hover:bg-green-300 active:scale-95 transition flex items-center justify-center gap-2"><i class="fa-solid fa-plus-circle"></i> Agregar</button></div>`;
     });
 }
 
+function renderCategoryFilters() {
+    const storeSelect = document.getElementById('store-category-filter');
+    const adminSelect = document.getElementById('admin-category-filter');
+    const adminProductCategory = document.getElementById('admin-prod-category');
+
+    const options = ['<option value="">Todas las categorías</option>'].concat(
+        storeState.categories.map(c => `<option value="${c.id}">${c.name}</option>`)
+    ).join('');
+
+    if (storeSelect) {
+        storeSelect.innerHTML = options;
+        storeSelect.value = storeState.storeCategoryFilter;
+        storeSelect.onchange = event => {
+            storeState.storeCategoryFilter = event.target.value;
+            renderProducts();
+        };
+    }
+
+    if (adminSelect) {
+        adminSelect.innerHTML = options;
+        adminSelect.value = storeState.adminCategoryFilter;
+        adminSelect.onchange = event => {
+            storeState.adminCategoryFilter = event.target.value;
+            renderAdminList();
+        };
+    }
+
+    if (adminProductCategory) {
+        adminProductCategory.innerHTML = '<option value="">Sin categoría</option>' + storeState.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    }
+}
 function toggleCart() { document.getElementById('cart-drawer').classList.toggle('translate-x-full'); document.getElementById('cart-overlay').classList.toggle('hidden'); }
 function addToCart(id) { const product = storeState.products.find(p => Number(p.id) === Number(id)); if (!product) return; const exists = cart.find(item => Number(item.id) === Number(id)); exists ? exists.qty++ : cart.push({ ...product, qty: 1 }); updateCartUI(); }
 function removeFromCart(id) { cart = cart.filter(item => Number(item.id) !== Number(id)); updateCartUI(); }
@@ -340,16 +383,59 @@ function renderAdminList() {
     activeList.innerHTML = '';
     archivedList.innerHTML = '';
 
-    storeState.products.forEach(p => {
+    const visibleProducts = storeState.products.filter(product => {
+        if (!storeState.adminCategoryFilter) return true;
+        return Number(product.category_id) === Number(storeState.adminCategoryFilter);
+    });
+
+    visibleProducts.forEach(p => {
         const target = Number(p.is_active) === 1 ? activeList : archivedList;
-        const deleteAction = hasRole('admin') ? `<button onclick=\"adminDeleteProduct(${p.id})\" class=\"text-red-400 p-2 hover:text-red-600 active:scale-95\"><i class=\"fa-solid fa-trash-can\"></i></button>` : '';
-        target.innerHTML += `<div draggable=\"${hasRole('admin', 'gestion')}\" ondragstart=\"onProductDragStart(event)\" data-product-id=\"${p.id}\" class=\"flex items-center gap-3 bg-white p-3 rounded-xl border border-baby-blue-light hover:border-baby-blue ${hasRole('admin', 'gestion') ? 'cursor-move' : ''}\"><img src=\"${p.img}\" class=\"w-12 h-12 object-contain bg-baby-cream rounded-lg\"><div class=\"flex-1\"><p class=\"font-bold text-sm text-baby-text\">${p.name}</p><p class=\"text-xs text-baby-pink font-bold\">${storeState.config.currency}${Number(p.price).toLocaleString()}</p></div>${deleteAction}</div>`;
+        const deleteAction = hasRole('admin') ? `<button onclick="adminDeleteProduct(${p.id})" class="text-red-400 p-2 hover:text-red-600 active:scale-95"><i class="fa-solid fa-trash-can"></i></button>` : '';
+        target.innerHTML += `<div draggable="${hasRole('admin', 'gestion')}" ondragstart="onProductDragStart(event)" data-product-id="${p.id}" class="bg-white p-3 rounded-xl border border-baby-blue-light hover:border-baby-blue ${hasRole('admin', 'gestion') ? 'cursor-move' : ''}"><div class="flex items-center gap-3"><img src="${p.img}" class="w-12 h-12 object-contain bg-baby-cream rounded-lg"><div class="flex-1"><p class="font-bold text-sm text-baby-text">${p.name}</p><p class="text-xs text-baby-pink font-bold">${storeState.config.currency}${Number(p.price).toLocaleString()}</p><p class="text-xs text-gray-500">${p.category_name || 'Sin categoría'}</p></div>${deleteAction}</div><div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2"><button onclick="openProductEdit(${p.id})" class="px-2 py-1 text-xs rounded-full bg-baby-blue-light">Editar</button><button onclick="quickToggleProduct(${p.id}, ${Number(p.is_active) === 1 ? 0 : 1})" class="px-2 py-1 text-xs rounded-full bg-white border border-baby-blue-light">${Number(p.is_active) === 1 ? 'Archivar' : 'Activar'}</button></div><div id="edit-product-${p.id}" class="hidden mt-3 space-y-2"><input id="edit-name-${p.id}" class="w-full p-2 border rounded" value="${p.name}"><input id="edit-price-${p.id}" type="number" class="w-full p-2 border rounded" value="${p.price}"><input id="edit-img-${p.id}" class="w-full p-2 border rounded" value="${p.img}"><select id="edit-category-${p.id}" class="w-full p-2 border rounded"><option value="">Sin categoría</option>${storeState.categories.map(c => `<option value="${c.id}" ${Number(p.category_id) === Number(c.id) ? 'selected' : ''}>${c.name}</option>`).join('')}</select><select id="edit-active-${p.id}" class="w-full p-2 border rounded"><option value="1" ${Number(p.is_active) === 1 ? 'selected' : ''}>Activo</option><option value="0" ${Number(p.is_active) === 0 ? 'selected' : ''}>Archivado</option></select><button onclick="saveProductEdit(${p.id})" class="w-full px-3 py-2 text-xs rounded-full bg-baby-pink text-white">Guardar edición</button></div></div>`;
     });
 
     setupProductDnD();
     renderOrdersKanban();
 }
 
+function openProductEdit(id) {
+    const box = document.getElementById(`edit-product-${id}`);
+    if (box) box.classList.toggle('hidden');
+}
+
+async function quickToggleProduct(id, isActive) {
+    try {
+        await fetchJSON(`/api/products/${id}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ is_active: isActive })
+        });
+        storeState.products = await fetchJSON('/api/products');
+        renderAdminList();
+        renderProducts();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function saveProductEdit(id) {
+    const name = document.getElementById(`edit-name-${id}`).value.trim();
+    const price = parseInt(document.getElementById(`edit-price-${id}`).value, 10);
+    const img = document.getElementById(`edit-img-${id}`).value.trim();
+    const categoryId = document.getElementById(`edit-category-${id}`).value;
+    const isActive = parseInt(document.getElementById(`edit-active-${id}`).value, 10);
+
+    try {
+        await fetchJSON(`/api/products/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ name, price, img, category_id: categoryId || null, is_active: isActive })
+        });
+        storeState.products = await fetchJSON('/api/products');
+        renderAdminList();
+        renderProducts();
+    } catch (error) {
+        alert(error.message);
+    }
+}
 function toggleAdminImageSource() {
     const source = document.getElementById('admin-prod-image-source');
     const urlInput = document.getElementById('admin-prod-img-url');
@@ -380,6 +466,7 @@ async function adminAddProduct() {
     const sourceSelect = document.getElementById('admin-prod-image-source');
     const imageUrlInput = document.getElementById('admin-prod-img-url');
     const imageFileInput = document.getElementById('admin-prod-img-file');
+    const categorySelect = document.getElementById('admin-prod-category');
 
     try {
         let imgPath = imageUrlInput.value.trim();
@@ -395,7 +482,8 @@ async function adminAddProduct() {
             body: JSON.stringify({
                 name: nameInput.value,
                 price: parseInt(priceInput.value, 10),
-                img: imgPath
+                img: imgPath,
+                category_id: categorySelect.value || null
             })
         });
 
@@ -404,6 +492,7 @@ async function adminAddProduct() {
         imageUrlInput.value = '';
         imageFileInput.value = '';
         sourceSelect.value = 'url';
+        categorySelect.value = '';
         toggleAdminImageSource();
 
         await initStore();
@@ -413,6 +502,28 @@ async function adminAddProduct() {
         alert(error.message);
     }
 }
+
+
+async function adminCreateCategory() {
+    const input = document.getElementById('admin-new-category-name');
+    const name = input.value.trim();
+    if (!name) return;
+
+    try {
+        await fetchJSON('/api/categories', {
+            method: 'POST',
+            body: JSON.stringify({ name })
+        });
+
+        const categories = await fetchJSON('/api/categories');
+        storeState.categories = categories;
+        renderCategoryFilters();
+        input.value = '';
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
 async function adminDeleteProduct(id) { if (!confirm('¿Estás seguro de eliminar este producto?')) return; try { await fetchJSON(`/api/products/${id}`, { method: 'DELETE' }); cart = cart.filter(item => Number(item.id) !== Number(id)); await initStore(); renderAdminList(); } catch (error) { alert(error.message); } }
 
 function onProductDragStart(event) {

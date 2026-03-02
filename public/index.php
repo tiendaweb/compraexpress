@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Controllers\ApiController;
+use App\Repositories\CategoryRepository;
 use App\Repositories\FlyerRepository;
 use App\Repositories\MediaRepository;
 use App\Repositories\OrderRepository;
@@ -58,6 +59,7 @@ ensurePublicUploadsSymlink($root);
 if (str_starts_with($path, '/api/')) {
     $controller = new ApiController(
         new ProductRepository(db()),
+        new CategoryRepository(db()),
         new SlideRepository(db()),
         new SettingRepository(db()),
         new FlyerRepository(db()),
@@ -97,6 +99,11 @@ if (str_starts_with($path, '/api/')) {
         return;
     }
 
+    if ($method === 'PATCH' && preg_match('#^/api/products/(\d+)$#', $path, $matches)) {
+        $controller->updateProduct((int) $matches[1]);
+        return;
+    }
+
     if ($method === 'DELETE' && preg_match('#^/api/products/(\d+)$#', $path, $matches)) {
         $controller->deleteProduct((int) $matches[1]);
         return;
@@ -104,6 +111,16 @@ if (str_starts_with($path, '/api/')) {
 
     if ($method === 'PATCH' && preg_match('#^/api/products/(\d+)/status$#', $path, $matches)) {
         $controller->updateProductStatus((int) $matches[1]);
+        return;
+    }
+
+    if ($method === 'GET' && $path === '/api/categories') {
+        $controller->getCategories();
+        return;
+    }
+
+    if ($method === 'POST' && $path === '/api/categories') {
+        $controller->createCategory();
         return;
     }
 
