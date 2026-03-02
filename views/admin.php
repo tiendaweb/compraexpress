@@ -20,6 +20,12 @@
             </select>
             <input type="text" id="admin-prod-img-url" placeholder="URL de la imagen" class="w-full p-3 border rounded-full bg-baby-cream focus:ring-2 focus:ring-baby-pink outline-none">
             <input type="file" id="admin-prod-img-file" accept="image/jpeg,image/png,image/webp,image/gif" class="w-full p-3 border rounded-full bg-baby-cream focus:ring-2 focus:ring-baby-pink outline-none hidden">
+            <input type="file" id="admin-prod-img-file-camera" accept="image/*" capture="environment" class="hidden" onchange="adminHandleCameraCapture(this.files[0])">
+            <button type="button" id="admin-prod-camera-btn" onclick="triggerAdminCameraCapture()" class="w-full border border-baby-blue-light py-2 rounded-full font-semibold text-sm hidden">
+                <i class="fa-solid fa-camera"></i> Tomar foto
+            </button>
+            <p id="admin-upload-error" class="text-xs text-red-500 hidden"></p>
+            <img id="admin-prod-img-preview" alt="Vista previa" class="hidden w-full h-40 object-cover rounded-2xl border border-baby-blue-light">
             <button type="button" onclick="openMediaPicker((item) => { document.getElementById('admin-prod-img-url').value = item.file_path; document.getElementById('admin-prod-image-source').value = 'url'; toggleAdminImageSource(); })" class="w-full border border-baby-blue-light py-2 rounded-full font-semibold text-sm">
                 <i class="fa-regular fa-folder-open"></i> Elegir desde File Manager
             </button>
@@ -55,6 +61,15 @@
             <button type="button" onclick="closeMediaPicker()" class="text-2xl leading-none">&times;</button>
         </div>
         <div class="mb-3 text-sm text-gray-500">Selecciona una imagen para usarla en productos o flyers.</div>
+        <div class="mb-3 p-3 bg-baby-cream rounded-xl border border-baby-blue-light space-y-2">
+            <input type="file" id="media-picker-upload-file" accept="image/jpeg,image/png,image/webp,image/gif" class="w-full text-sm">
+            <input type="file" id="media-picker-upload-camera" accept="image/*" capture="environment" class="hidden" onchange="mediaPickerCaptureAndUpload(this.files[0])">
+            <div class="flex gap-2">
+                <button type="button" onclick="mediaPickerUploadSelected()" class="flex-1 border border-baby-blue-light rounded-full py-2 text-sm font-semibold">Subir archivo</button>
+                <button type="button" onclick="triggerMediaPickerCameraCapture()" class="flex-1 border border-baby-blue-light rounded-full py-2 text-sm font-semibold"><i class="fa-solid fa-camera"></i> Tomar foto</button>
+            </div>
+            <p id="media-picker-upload-error" class="text-xs text-red-500 hidden"></p>
+        </div>
         <div id="media-library-grid" class="grid grid-cols-2 md:grid-cols-4 gap-3 overflow-y-auto"></div>
     </div>
 </div>

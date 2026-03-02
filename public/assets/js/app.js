@@ -51,6 +51,97 @@ function deepClone(value) {
     return JSON.parse(JSON.stringify(value));
 }
 
+const IMAGE_UPLOAD_CONFIG = {
+    maxPreviewWidth: 1280,
+    maxPreviewHeight: 1280,
+    quality: 0.82,
+    compressThresholdBytes: 1.5 * 1024 * 1024,
+};
+
+function showInlineUploadError(elementId, message = '') {
+    const node = document.getElementById(elementId);
+    if (!node) return;
+    if (message) {
+        node.textContent = message;
+        node.classList.remove('hidden');
+        return;
+    }
+    node.textContent = '';
+    node.classList.add('hidden');
+}
+
+function deviceSupportsCapture() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    return 'capture' in input;
+}
+
+function dataUrlToFile(dataUrl, fileName = 'captura.jpg') {
+    const [header, data] = dataUrl.split(',');
+    const mimeMatch = header.match(/data:(.*?);base64/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    const binary = atob(data);
+    const array = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) array[i] = binary.charCodeAt(i);
+    return new File([array], fileName, { type: mime });
+}
+
+function loadImageFromFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error('No se pudo leer la imagen seleccionada.'));
+            img.src = reader.result;
+        };
+        reader.onerror = () => reject(new Error('No se pudo procesar el archivo seleccionado.'));
+        reader.readAsDataURL(file);
+    });
+}
+
+async function prepareImageForUpload(file) {
+    if (!file || !file.type?.startsWith('image/')) {
+        throw new Error('Selecciona un archivo de imagen válido.');
+    }
+
+    const shouldCompress = file.size >= IMAGE_UPLOAD_CONFIG.compressThresholdBytes;
+    if (!shouldCompress) {
+        return { uploadFile: file, previewUrl: URL.createObjectURL(file), compressed: false };
+    }
+
+    const sourceImage = await loadImageFromFile(file);
+    const ratio = Math.min(
+        1,
+        IMAGE_UPLOAD_CONFIG.maxPreviewWidth / sourceImage.width,
+        IMAGE_UPLOAD_CONFIG.maxPreviewHeight / sourceImage.height
+    );
+
+    const width = Math.max(1, Math.round(sourceImage.width * ratio));
+    const height = Math.max(1, Math.round(sourceImage.height * ratio));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    context.drawImage(sourceImage, 0, 0, width, height);
+
+    const dataUrl = canvas.toDataURL('image/jpeg', IMAGE_UPLOAD_CONFIG.quality);
+    const compressedFile = dataUrlToFile(dataUrl, file.name.replace(/\.[^.]+$/, '') + '-compressed.jpg');
+    return { uploadFile: compressedFile, previewUrl: dataUrl, compressed: true };
+}
+
+function setImagePreview(elementId, previewUrl) {
+    const preview = document.getElementById(elementId);
+    if (!preview) return;
+    if (!previewUrl) {
+        preview.removeAttribute('src');
+        preview.classList.add('hidden');
+        return;
+    }
+    preview.src = previewUrl;
+    preview.classList.remove('hidden');
+}
+
 function normalizeTemplateElement(rawElement = {}) {
     const normalized = {
         id: rawElement.id || `e${Date.now()}`,
@@ -596,6 +687,12 @@ async function openMediaPicker(onSelect) {
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 
+    if (!deviceSupportsCapture()) {
+        showInlineUploadError('media-picker-upload-error', 'Captura por cámara no disponible en este dispositivo. Puedes subir una imagen existente.');
+    } else {
+        showInlineUploadError('media-picker-upload-error');
+    }
+
     try {
         await loadMediaLibrary();
     } catch (error) {
@@ -621,15 +718,94 @@ async function deleteMediaFile(id) {
     }
 }
 
+async function uploadMediaFromFile(file, errorElementId = 'media-picker-upload-error') {
+    if (!file) {
+        showInlineUploadError(errorElementId, 'Selecciona una imagen para subir.');
+        return;
+    }
+
+    try {
+        const prepared = await prepareImageForUpload(file);
+        await uploadAdminProductImage(prepared.uploadFile);
+        await loadMediaLibrary();
+        showInlineUploadError(errorElementId);
+    } catch (error) {
+        showInlineUploadError(errorElementId, error.message);
+    }
+}
+
+async function mediaPickerUploadSelected() {
+    const input = document.getElementById('media-picker-upload-file');
+    if (!input) return;
+    await uploadMediaFromFile(input.files?.[0]);
+    input.value = '';
+}
+
+async function mediaPickerCaptureAndUpload(file) {
+    if (!file) return;
+    await uploadMediaFromFile(file);
+    const captureInput = document.getElementById('media-picker-upload-camera');
+    if (captureInput) captureInput.value = '';
+}
+
+function triggerMediaPickerCameraCapture() {
+    if (!deviceSupportsCapture()) {
+        showInlineUploadError('media-picker-upload-error', 'Tu dispositivo no soporta captura por cámara desde el navegador.');
+        return;
+    }
+
+    const captureInput = document.getElementById('media-picker-upload-camera');
+    if (!captureInput) return;
+    showInlineUploadError('media-picker-upload-error');
+    captureInput.click();
+}
+
 function toggleAdminImageSource() {
     const source = document.getElementById('admin-prod-image-source');
     const urlInput = document.getElementById('admin-prod-img-url');
     const fileInput = document.getElementById('admin-prod-img-file');
+    const cameraButton = document.getElementById('admin-prod-camera-btn');
     if (!source || !urlInput || !fileInput) return;
 
     const useUpload = source.value === 'upload';
+    const supportsCapture = deviceSupportsCapture();
     urlInput.classList.toggle('hidden', useUpload);
     fileInput.classList.toggle('hidden', !useUpload);
+    if (cameraButton) cameraButton.classList.toggle('hidden', !useUpload);
+
+    if (useUpload && !supportsCapture) {
+        showInlineUploadError('admin-upload-error', 'Tu dispositivo/navegador no soporta captura directa desde cámara. Usa “Subir archivo”.');
+    } else {
+        showInlineUploadError('admin-upload-error');
+    }
+}
+
+async function triggerAdminCameraCapture() {
+    if (!deviceSupportsCapture()) {
+        showInlineUploadError('admin-upload-error', 'No se pudo abrir la cámara en este dispositivo.');
+        return;
+    }
+
+    const captureInput = document.getElementById('admin-prod-img-file-camera');
+    if (!captureInput) return;
+    captureInput.click();
+}
+
+async function adminHandleCameraCapture(file) {
+    if (!file) return;
+    const imageFileInput = document.getElementById('admin-prod-img-file');
+    if (!imageFileInput) return;
+
+    try {
+        const prepared = await prepareImageForUpload(file);
+        const transfer = new DataTransfer();
+        transfer.items.add(prepared.uploadFile);
+        imageFileInput.files = transfer.files;
+        setImagePreview('admin-prod-img-preview', prepared.previewUrl);
+        showInlineUploadError('admin-upload-error');
+    } catch (error) {
+        showInlineUploadError('admin-upload-error', error.message);
+    }
 }
 
 async function uploadAdminProductImage(file) {
@@ -659,7 +835,9 @@ async function adminAddProduct() {
         if (sourceSelect.value === 'upload') {
             const file = imageFileInput.files[0];
             if (!file) throw new Error('Selecciona una imagen para subir.');
-            imgPath = await uploadAdminProductImage(file);
+            const prepared = await prepareImageForUpload(file);
+            imgPath = await uploadAdminProductImage(prepared.uploadFile);
+            showInlineUploadError('admin-upload-error');
         }
 
         await fetchJSON('/api/products', {
@@ -676,6 +854,7 @@ async function adminAddProduct() {
         priceInput.value = '';
         imageUrlInput.value = '';
         imageFileInput.value = '';
+        setImagePreview('admin-prod-img-preview', '');
         sourceSelect.value = 'url';
         categorySelect.value = '';
         toggleAdminImageSource();
@@ -948,10 +1127,41 @@ async function flyerUploadElementImage(id, file) {
     if (!file) return;
 
     try {
-        const path = await uploadAdminProductImage(file);
+        const prepared = await prepareImageForUpload(file);
+        const path = await uploadAdminProductImage(prepared.uploadFile);
+        showInlineUploadError('flyer-upload-error');
         flyerUpdateElement(id, path);
     } catch (error) {
-        alert(error.message);
+        showInlineUploadError('flyer-upload-error', error.message);
+    }
+}
+
+
+function triggerFlyerCameraCapture() {
+    if (!deviceSupportsCapture()) {
+        showInlineUploadError('flyer-upload-error', 'Tu dispositivo no soporta captura por cámara en este navegador.');
+        return;
+    }
+
+    const input = document.getElementById('flyer-camera-input');
+    if (!input) return;
+    showInlineUploadError('flyer-upload-error');
+    input.click();
+}
+
+async function flyerCaptureSelectedImage(file) {
+    if (!file) return;
+
+    try {
+        const prepared = await prepareImageForUpload(file);
+        const path = await uploadAdminProductImage(prepared.uploadFile);
+        showInlineUploadError('flyer-upload-error');
+        flyerSetImageFromMedia(path);
+    } catch (error) {
+        showInlineUploadError('flyer-upload-error', error.message);
+    } finally {
+        const input = document.getElementById('flyer-camera-input');
+        if (input) input.value = '';
     }
 }
 
@@ -970,15 +1180,17 @@ function flyerSetImageFromMedia(path) {
 
 async function flyerHandleCanvasDrop(file) {
     if (!file || !file.type.startsWith('image/')) {
-        alert('Solo puedes soltar imágenes en el canvas.');
+        showInlineUploadError('flyer-upload-error', 'Solo puedes soltar imágenes en el canvas.');
         return;
     }
 
     try {
-        const path = await uploadAdminProductImage(file);
+        const prepared = await prepareImageForUpload(file);
+        const path = await uploadAdminProductImage(prepared.uploadFile);
+        showInlineUploadError('flyer-upload-error');
         flyerSetImageFromMedia(path);
     } catch (error) {
-        alert(error.message);
+        showInlineUploadError('flyer-upload-error', error.message);
     }
 }
 
@@ -1124,7 +1336,7 @@ function renderFlyerBuilder() {
     elementsList.innerHTML = '';
     flyerState.elements.forEach(el => {
         if (el.type === 'image') {
-            elementsList.innerHTML += `<div class="p-2 rounded-xl border ${flyerState.selectedElementId === el.id ? 'border-baby-pink' : 'border-baby-blue-light'}"><div class="text-xs mb-1">IMAGEN</div><input class="w-full p-2 border rounded mb-2" placeholder="URL opcional" value="${el.value || ''}" oninput="flyerUpdateElement('${el.id}', this.value)"><input type="file" accept="image/*" class="w-full p-2 border rounded" onchange="flyerUploadElementImage('${el.id}', this.files[0])"><button type="button" onclick="openMediaPicker((item) => flyerUpdateElement('${el.id}', item.file_path))" class="w-full mt-2 px-3 py-2 text-xs rounded-full border border-baby-blue-light">Elegir desde File Manager</button></div>`;
+            elementsList.innerHTML += `<div class="p-2 rounded-xl border ${flyerState.selectedElementId === el.id ? 'border-baby-pink' : 'border-baby-blue-light'}"><div class="text-xs mb-1">IMAGEN</div><input class="w-full p-2 border rounded mb-2" placeholder="URL opcional" value="${el.value || ''}" oninput="flyerUpdateElement('${el.id}', this.value)"><input type="file" accept="image/*" capture="environment" class="w-full p-2 border rounded" onchange="flyerUploadElementImage('${el.id}', this.files[0])"><button type="button" onclick="openMediaPicker((item) => flyerUpdateElement('${el.id}', item.file_path))" class="w-full mt-2 px-3 py-2 text-xs rounded-full border border-baby-blue-light">Elegir desde File Manager</button></div>`;
             return;
         }
 
@@ -1359,6 +1571,31 @@ const imageSourceSelect = document.getElementById('admin-prod-image-source');
 if (imageSourceSelect) {
     imageSourceSelect.addEventListener('change', toggleAdminImageSource);
     toggleAdminImageSource();
+}
+
+
+const adminImageFileInput = document.getElementById('admin-prod-img-file');
+if (adminImageFileInput) {
+    adminImageFileInput.addEventListener('change', async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) {
+            setImagePreview('admin-prod-img-preview', '');
+            return;
+        }
+
+        try {
+            const prepared = await prepareImageForUpload(file);
+            if (prepared.compressed) {
+                const transfer = new DataTransfer();
+                transfer.items.add(prepared.uploadFile);
+                event.target.files = transfer.files;
+            }
+            setImagePreview('admin-prod-img-preview', prepared.previewUrl);
+            showInlineUploadError('admin-upload-error');
+        } catch (error) {
+            showInlineUploadError('admin-upload-error', error.message);
+        }
+    });
 }
 
 function classifyInitError(error) {

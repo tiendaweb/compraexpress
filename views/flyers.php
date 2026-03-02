@@ -25,6 +25,10 @@
             <button onclick="openMediaPicker((item) => flyerSetImageFromMedia(item.file_path))" class="w-full border border-baby-blue-light py-2 rounded-full font-bold text-sm">
                 <i class="fa-regular fa-folder-open"></i> Abrir File Manager
             </button>
+            <input type="file" id="flyer-camera-input" accept="image/*" capture="environment" class="hidden" onchange="flyerCaptureSelectedImage(this.files[0])">
+            <button type="button" onclick="triggerFlyerCameraCapture()" class="w-full border border-baby-blue-light py-2 rounded-full font-bold text-sm">
+                <i class="fa-solid fa-camera"></i> Tomar foto para elemento
+            </button>
             <button onclick="flyerApplyProductToSelected()" class="w-full bg-baby-pink text-white py-2 rounded-full font-bold">Autocompletar elemento</button>
             <p class="text-xs text-gray-500">Tip: al crear un elemento de imagen, por defecto quedará listo para cargar archivo.</p>
             <button onclick="flyerSave()" class="w-full bg-baby-green py-3 rounded-full font-bold">Guardar flyer</button>
@@ -36,6 +40,7 @@
         <div class="lg:col-span-2 bg-white p-5 rounded-3xl shadow-lg border-2 border-baby-blue-light">
             <div id="flyer-canvas" class="relative w-full h-[520px] bg-baby-cream rounded-2xl border border-baby-blue-light"></div>
             <p class="text-xs text-gray-500 mt-2">Tip: arrastra y suelta una imagen sobre el canvas para subirla y asignarla.</p>
+            <p id="flyer-upload-error" class="text-xs text-red-500 hidden"></p>
             <div id="flyer-elements" class="mt-4 space-y-2 max-h-48 overflow-y-auto"></div>
         </div>
     </div>
