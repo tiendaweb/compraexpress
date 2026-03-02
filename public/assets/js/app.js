@@ -18,6 +18,7 @@ const flyerState = {
     id: null,
     title: '',
     productId: null,
+    subTab: 'editor',
     templateId: 'custom',
     bgColor: '#fffaf0',
     elements: [],
@@ -372,7 +373,10 @@ function showTab(tabName) {
 
     if (tabName === 'admin') renderAdminList();
     if (tabName === 'orders') renderOrdersKanban();
-    if (tabName === 'flyers') renderFlyerBuilder();
+    if (tabName === 'flyers') {
+        renderFlyerBuilder();
+        showFlyerSubTab(flyerState.subTab || 'editor');
+    }
 }
 
 function renderAdminList() {
@@ -646,6 +650,7 @@ async function initFlyers() {
         } catch (_) {}
     }
     renderFlyerSelectors();
+    renderFlyerProjectList();
     if (flyerState.id) {
         await loadFlyerExports(flyerState.id);
     } else {
@@ -654,13 +659,9 @@ async function initFlyers() {
 }
 
 function renderFlyerSelectors() {
-    const saved = document.getElementById('flyer-saved');
     const product = document.getElementById('flyer-product-select');
     const templateSelect = document.getElementById('flyer-template-select');
-    if (!saved || !product) return;
-
-    saved.innerHTML = '<option value="">-- Flyers guardados --</option>';
-    storeState.flyers.forEach(f => saved.innerHTML += `<option value="${f.id}">${f.title}</option>`);
+    if (!product) return;
 
     product.innerHTML = '<option value="">Producto relacionado (opcional)</option>';
     storeState.products.forEach(p => product.innerHTML += `<option value="${p.id}">${p.name}</option>`);
@@ -678,20 +679,69 @@ function renderFlyerSelectors() {
         };
     }
 
-    saved.onchange = async (e) => {
-        if (!e.target.value) return;
-        const data = await fetchJSON(`/api/flyers/${e.target.value}`);
-        flyerState.id = Number(data.id);
-        flyerState.title = data.title;
-        flyerState.productId = data.product_id ? Number(data.product_id) : null;
-        flyerState.templateId = data.template_id || 'custom';
-        flyerState.bgColor = data.bg_color || '#fffaf0';
-        const parsedElements = JSON.parse(data.layout_json || '[]');
-        flyerState.elements = Array.isArray(parsedElements) ? parsedElements.map(normalizeTemplateElement) : [];
-        flyerState.selectedElementId = flyerState.elements[0]?.id || null;
-        renderFlyerBuilder();
-        await loadFlyerExports(flyerState.id);
-    };
+}
+
+async function loadFlyerProject(flyerId) {
+    if (!flyerId) return;
+    const data = await fetchJSON(`/api/flyers/${flyerId}`);
+    flyerState.id = Number(data.id);
+    flyerState.title = data.title;
+    flyerState.productId = data.product_id ? Number(data.product_id) : null;
+    flyerState.templateId = data.template_id || 'custom';
+    flyerState.bgColor = data.bg_color || '#fffaf0';
+    const parsedElements = JSON.parse(data.layout_json || '[]');
+    flyerState.elements = Array.isArray(parsedElements) ? parsedElements.map(normalizeTemplateElement) : [];
+    flyerState.selectedElementId = flyerState.elements[0]?.id || null;
+    renderFlyerBuilder();
+    renderFlyerProjectList();
+    await loadFlyerExports(flyerState.id);
+}
+
+function renderFlyerProjectList() {
+    const projectList = document.getElementById('flyer-project-list');
+    if (!projectList) return;
+
+    if (!storeState.flyers.length) {
+        projectList.innerHTML = '<p>No hay flyers guardados.</p>';
+        return;
+    }
+
+    projectList.innerHTML = storeState.flyers.map(flyer => {
+        const isActive = Number(flyerState.id) === Number(flyer.id);
+        return `<button onclick="openFlyerFromExplorer(${flyer.id})" class="w-full text-left flex items-center justify-between border rounded-xl p-3 ${isActive ? 'border-baby-pink bg-baby-cream' : 'border-baby-blue-light'}"><span class="font-semibold">${flyer.title}</span><span class="text-xs text-gray-500">#${flyer.id}</span></button>`;
+    }).join('');
+}
+
+async function openFlyerFromExplorer(flyerId) {
+    await loadFlyerProject(flyerId);
+    showFlyerSubTab('editor');
+}
+
+function showFlyerSubTab(subTab) {
+    const nextTab = subTab === 'explorer' ? 'explorer' : 'editor';
+    flyerState.subTab = nextTab;
+
+    const editorSection = document.getElementById('flyer-subtab-editor');
+    const explorerSection = document.getElementById('flyer-subtab-explorer');
+    const editorButton = document.getElementById('flyer-subtab-btn-editor');
+    const explorerButton = document.getElementById('flyer-subtab-btn-explorer');
+
+    if (editorSection) editorSection.classList.toggle('hidden', nextTab !== 'editor');
+    if (explorerSection) explorerSection.classList.toggle('hidden', nextTab !== 'explorer');
+
+    if (editorButton) {
+        editorButton.classList.toggle('bg-baby-blue', nextTab === 'editor');
+        editorButton.classList.toggle('text-white', nextTab === 'editor');
+    }
+
+    if (explorerButton) {
+        explorerButton.classList.toggle('bg-baby-blue', nextTab === 'explorer');
+        explorerButton.classList.toggle('text-white', nextTab === 'explorer');
+    }
+
+    if (nextTab === 'explorer') {
+        renderFlyerProjectList();
+    }
 }
 
 function flyerNew() {
@@ -700,6 +750,7 @@ function flyerNew() {
     flyerState.productId = null;
     loadTemplateInBuilder(flyerState.templateId || 'custom');
     renderFlyerBuilder();
+    renderFlyerProjectList();
     renderFlyerExports([]);
 }
 
@@ -886,6 +937,7 @@ async function flyerSave() {
     localStorage.setItem('flyerDraftCache', JSON.stringify(flyerState));
     await initFlyers();
     await loadFlyerExports(flyerState.id);
+    renderFlyerProjectList();
     alert('Flyer guardado en base de datos.');
 }
 
