@@ -4,7 +4,16 @@ const storeState = {
     config: {
         whatsappNumber: '573001234567',
         currency: '$'
-    }
+    },
+    flyers: []
+};
+
+const flyerState = {
+    id: null,
+    title: '',
+    productId: null,
+    elements: [],
+    selectedElementId: null
 };
 
 let cart = [];
@@ -16,10 +25,7 @@ async function fetchJSON(url, options = {}) {
     });
 
     const payload = await response.json();
-    if (!response.ok) {
-        throw new Error(payload.error || 'Error de servidor');
-    }
-
+    if (!response.ok) throw new Error(payload.error || 'Error de servidor');
     return payload;
 }
 
@@ -29,25 +35,18 @@ async function initStore() {
     storeState.slides = data.slides || [];
     storeState.config = { ...storeState.config, ...(data.config || {}) };
 
+    await initFlyers();
     renderSlider();
     renderProducts();
     updateCartUI();
 }
 
-function renderSlider() {
+function renderSlider() { /* unchanged behavior */
     const sliderWrapper = document.getElementById('slider-wrapper');
     sliderWrapper.innerHTML = '';
-
     storeState.slides.forEach(slide => {
-        sliderWrapper.innerHTML += `
-            <div class="min-w-full relative h-full">
-                <img src="${slide.image}" class="w-full h-full object-cover">
-                <div class="absolute inset-0 bg-black/40 flex items-center justify-center p-4">
-                    <h2 class="text-white text-3xl md:text-5xl font-bold drop-shadow-lg text-center bg-baby-pink/50 px-6 py-2 rounded-full">${slide.text}</h2>
-                </div>
-            </div>`;
+        sliderWrapper.innerHTML += `<div class="min-w-full relative h-full"><img src="${slide.image}" class="w-full h-full object-cover"><div class="absolute inset-0 bg-black/40 flex items-center justify-center p-4"><h2 class="text-white text-3xl md:text-5xl font-bold drop-shadow-lg text-center bg-baby-pink/50 px-6 py-2 rounded-full">${slide.text}</h2></div></div>`;
     });
-
     let index = 0;
     if (window.sliderInterval) clearInterval(window.sliderInterval);
     window.sliderInterval = setInterval(() => {
@@ -61,162 +60,146 @@ function renderSlider() {
 function renderProducts() {
     const grid = document.getElementById('product-grid');
     grid.innerHTML = '';
-
     storeState.products.forEach(p => {
-        grid.innerHTML += `
-            <div class="bg-white p-4 rounded-3xl shadow-md product-card border-2 border-baby-blue-light flex flex-col">
-                <div class="w-full h-36 bg-baby-cream rounded-2xl mb-4 flex items-center justify-center overflow-hidden">
-                    <img src="${p.img}" class="h-full object-contain">
-                </div>
-                <h3 class="text-base font-semibold text-baby-text h-12 overflow-hidden">${p.name}</h3>
-                <p class="text-2xl font-bold text-baby-pink mt-2">${storeState.config.currency}${Number(p.price).toLocaleString()}</p>
-                <button onclick="addToCart(${p.id})" class="mt-4 w-full bg-baby-green text-baby-text py-3 rounded-full text-sm font-bold hover:bg-green-300 active:scale-95 transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-plus-circle"></i> Agregar
-                </button>
-            </div>`;
+        grid.innerHTML += `<div class="bg-white p-4 rounded-3xl shadow-md product-card border-2 border-baby-blue-light flex flex-col"><div class="w-full h-36 bg-baby-cream rounded-2xl mb-4 flex items-center justify-center overflow-hidden"><img src="${p.img}" class="h-full object-contain"></div><h3 class="text-base font-semibold text-baby-text h-12 overflow-hidden">${p.name}</h3><p class="text-2xl font-bold text-baby-pink mt-2">${storeState.config.currency}${Number(p.price).toLocaleString()}</p><button onclick="addToCart(${p.id})" class="mt-4 w-full bg-baby-green text-baby-text py-3 rounded-full text-sm font-bold hover:bg-green-300 active:scale-95 transition flex items-center justify-center gap-2"><i class="fa-solid fa-plus-circle"></i> Agregar</button></div>`;
     });
 }
 
-function toggleCart() {
-    document.getElementById('cart-drawer').classList.toggle('translate-x-full');
-    document.getElementById('cart-overlay').classList.toggle('hidden');
-}
+function toggleCart() { document.getElementById('cart-drawer').classList.toggle('translate-x-full'); document.getElementById('cart-overlay').classList.toggle('hidden'); }
+function addToCart(id) { const product = storeState.products.find(p => Number(p.id) === Number(id)); if (!product) return; const exists = cart.find(item => Number(item.id) === Number(id)); exists ? exists.qty++ : cart.push({ ...product, qty: 1 }); updateCartUI(); }
+function removeFromCart(id) { cart = cart.filter(item => Number(item.id) !== Number(id)); updateCartUI(); }
+function updateCartUI() { const list = document.getElementById('cart-items'); const countLabel = document.getElementById('cart-count'); const totalLabel = document.getElementById('cart-total'); list.innerHTML = ''; let total = 0; let count = 0; cart.forEach(item => { total += Number(item.price) * item.qty; count += item.qty; list.innerHTML += `<div class="flex items-center gap-3 bg-white p-3 rounded-2xl shadow border border-baby-blue-light"><img src="${item.img}" class="w-16 h-16 object-contain rounded-lg bg-baby-cream"><div class="flex-1"><p class="text-sm font-bold text-baby-text">${item.name}</p><p class="text-xs text-gray-500">${item.qty} x ${storeState.config.currency}${Number(item.price).toLocaleString()}</p></div><button onclick="removeFromCart(${item.id})" class="text-red-300 p-2 hover:text-red-500"><i class="fa-solid fa-trash-can text-lg"></i></button></div>`; }); countLabel.innerText = count; totalLabel.innerText = `${storeState.config.currency}${total.toLocaleString()}`; }
 
-function addToCart(id) {
-    const product = storeState.products.find(p => Number(p.id) === Number(id));
-    if (!product) return;
-
-    const exists = cart.find(item => Number(item.id) === Number(id));
-    if (exists) {
-        exists.qty++;
-    } else {
-        cart.push({ ...product, qty: 1 });
-    }
-
-    updateCartUI();
-}
-
-function removeFromCart(id) {
-    cart = cart.filter(item => Number(item.id) !== Number(id));
-    updateCartUI();
-}
-
-function updateCartUI() {
-    const list = document.getElementById('cart-items');
-    const countLabel = document.getElementById('cart-count');
-    const totalLabel = document.getElementById('cart-total');
-
-    list.innerHTML = '';
-    let total = 0;
-    let count = 0;
-
-    cart.forEach(item => {
-        total += Number(item.price) * item.qty;
-        count += item.qty;
-        list.innerHTML += `
-            <div class="flex items-center gap-3 bg-white p-3 rounded-2xl shadow border border-baby-blue-light">
-                <img src="${item.img}" class="w-16 h-16 object-contain rounded-lg bg-baby-cream">
-                <div class="flex-1">
-                    <p class="text-sm font-bold text-baby-text">${item.name}</p>
-                    <p class="text-xs text-gray-500">${item.qty} x ${storeState.config.currency}${Number(item.price).toLocaleString()}</p>
-                </div>
-                <button onclick="removeFromCart(${item.id})" class="text-red-300 p-2 hover:text-red-500"><i class="fa-solid fa-trash-can text-lg"></i></button>
-            </div>`;
-    });
-
-    countLabel.innerText = count;
-    totalLabel.innerText = `${storeState.config.currency}${total.toLocaleString()}`;
-}
-
-function sendOrder() {
-    const name = document.getElementById('cust-name').value;
-    const address = document.getElementById('cust-address').value;
-
-    if (cart.length === 0) return alert('¡El carrito está vacío, dulzura!');
-    if (!name || !address) return alert('Por favor, completa tus datos para el envío');
-
-    let message = `*Nuevo Pedido - Pañalería y Algo Más*%0A%0A`;
-    message += `*Cliente:* ${name}%0A`;
-    message += `*Dirección:* ${address}%0A%0A`;
-    message += '*Productos:*%0A';
-
-    cart.forEach(item => {
-        message += `- ${item.qty}x ${item.name} (${storeState.config.currency}${Number(item.price) * item.qty})%0A`;
-    });
-
-    const total = document.getElementById('cart-total').innerText;
-    message += `%0A*TOTAL: ${total}*`;
-
-    const url = `https://wa.me/${storeState.config.whatsappNumber}?text=${message}`;
-    window.open(url, '_blank');
-}
+function sendOrder() { const name = document.getElementById('cust-name').value; const address = document.getElementById('cust-address').value; if (cart.length === 0) return alert('¡El carrito está vacío, dulzura!'); if (!name || !address) return alert('Por favor, completa tus datos para el envío'); let message = `*Nuevo Pedido - Pañalería y Algo Más*%0A%0A`; message += `*Cliente:* ${name}%0A`; message += `*Dirección:* ${address}%0A%0A`; message += '*Productos:*%0A'; cart.forEach(item => { message += `- ${item.qty}x ${item.name} (${storeState.config.currency}${Number(item.price) * item.qty})%0A`; }); const total = document.getElementById('cart-total').innerText; message += `%0A*TOTAL: ${total}*`; window.open(`https://wa.me/${storeState.config.whatsappNumber}?text=${message}`, '_blank'); }
 
 function showTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.querySelectorAll('nav button').forEach(el => el.classList.remove('active-tab'));
 
-    if (tabName === 'store') {
-        document.getElementById('section-store').classList.remove('hidden');
-        document.getElementById('tab-store').classList.add('active-tab');
-    } else {
-        document.getElementById('section-admin').classList.remove('hidden');
-        document.getElementById('tab-admin').classList.add('active-tab');
-        renderAdminList();
+    const sectionId = tabName === 'store' ? 'section-store' : tabName === 'admin' ? 'section-admin' : 'section-flyers';
+    const tabId = tabName === 'store' ? 'tab-store' : tabName === 'admin' ? 'tab-admin' : 'tab-flyers';
+    document.getElementById(sectionId).classList.remove('hidden');
+    document.getElementById(tabId).classList.add('active-tab');
+
+    if (tabName === 'admin') renderAdminList();
+    if (tabName === 'flyers') renderFlyerBuilder();
+}
+
+function renderAdminList() { const list = document.getElementById('admin-product-list'); list.innerHTML = ''; storeState.products.forEach(p => { list.innerHTML += `<div class="flex items-center gap-3 bg-baby-cream p-3 rounded-xl border border-baby-blue-light hover:border-baby-blue"><img src="${p.img}" class="w-12 h-12 object-contain bg-white rounded-lg"><div class="flex-1"><p class="font-bold text-sm text-baby-text">${p.name}</p><p class="text-xs text-baby-pink font-bold">${storeState.config.currency}${Number(p.price).toLocaleString()}</p></div><button onclick="adminDeleteProduct(${p.id})" class="text-red-400 p-2 hover:text-red-600 active:scale-95"><i class="fa-solid fa-trash-can"></i></button></div>`; }); }
+async function adminAddProduct() { const nameInput = document.getElementById('admin-prod-name'); const priceInput = document.getElementById('admin-prod-price'); const imgInput = document.getElementById('admin-prod-img'); try { await fetchJSON('/api/products', { method: 'POST', body: JSON.stringify({ name: nameInput.value, price: parseInt(priceInput.value, 10), img: imgInput.value }) }); nameInput.value = ''; priceInput.value = ''; imgInput.value = ''; await initStore(); renderAdminList(); alert('¡Producto añadido con éxito!'); } catch (error) { alert(error.message); } }
+async function adminDeleteProduct(id) { if (!confirm('¿Estás seguro de eliminar este producto?')) return; try { await fetchJSON(`/api/products/${id}`, { method: 'DELETE' }); cart = cart.filter(item => Number(item.id) !== Number(id)); await initStore(); renderAdminList(); } catch (error) { alert(error.message); } }
+
+async function initFlyers() {
+    storeState.flyers = await fetchJSON('/api/flyers');
+    const cached = localStorage.getItem('flyerDraftCache');
+    if (cached && !flyerState.id) {
+        try {
+            const parsed = JSON.parse(cached);
+            Object.assign(flyerState, parsed);
+        } catch (_) {}
     }
+    renderFlyerSelectors();
 }
 
-function renderAdminList() {
-    const list = document.getElementById('admin-product-list');
-    list.innerHTML = '';
+function renderFlyerSelectors() {
+    const saved = document.getElementById('flyer-saved');
+    const product = document.getElementById('flyer-product-select');
+    if (!saved || !product) return;
 
-    storeState.products.forEach(p => {
-        list.innerHTML += `
-            <div class="flex items-center gap-3 bg-baby-cream p-3 rounded-xl border border-baby-blue-light hover:border-baby-blue">
-                <img src="${p.img}" class="w-12 h-12 object-contain bg-white rounded-lg">
-                <div class="flex-1">
-                    <p class="font-bold text-sm text-baby-text">${p.name}</p>
-                    <p class="text-xs text-baby-pink font-bold">${storeState.config.currency}${Number(p.price).toLocaleString()}</p>
-                </div>
-                <button onclick="adminDeleteProduct(${p.id})" class="text-red-400 p-2 hover:text-red-600 active:scale-95"><i class="fa-solid fa-trash-can"></i></button>
-            </div>`;
-    });
-}
+    saved.innerHTML = '<option value="">-- Flyers guardados --</option>';
+    storeState.flyers.forEach(f => saved.innerHTML += `<option value="${f.id}">${f.title}</option>`);
 
-async function adminAddProduct() {
-    const nameInput = document.getElementById('admin-prod-name');
-    const priceInput = document.getElementById('admin-prod-price');
-    const imgInput = document.getElementById('admin-prod-img');
+    product.innerHTML = '<option value="">Producto relacionado (opcional)</option>';
+    storeState.products.forEach(p => product.innerHTML += `<option value="${p.id}">${p.name}</option>`);
 
-    const payload = {
-        name: nameInput.value,
-        price: parseInt(priceInput.value, 10),
-        img: imgInput.value
+    saved.onchange = async (e) => {
+        if (!e.target.value) return;
+        const data = await fetchJSON(`/api/flyers/${e.target.value}`);
+        flyerState.id = Number(data.id);
+        flyerState.title = data.title;
+        flyerState.productId = data.product_id ? Number(data.product_id) : null;
+        flyerState.elements = JSON.parse(data.layout_json || '[]');
+        flyerState.selectedElementId = flyerState.elements[0]?.id || null;
+        renderFlyerBuilder();
     };
-
-    try {
-        await fetchJSON('/api/products', { method: 'POST', body: JSON.stringify(payload) });
-        nameInput.value = '';
-        priceInput.value = '';
-        imgInput.value = '';
-        await initStore();
-        renderAdminList();
-        alert('¡Producto añadido con éxito!');
-    } catch (error) {
-        alert(error.message);
-    }
 }
 
-async function adminDeleteProduct(id) {
-    if (!confirm('¿Estás seguro de eliminar este producto?')) return;
+function flyerNew() {
+    flyerState.id = null;
+    flyerState.title = '';
+    flyerState.productId = null;
+    flyerState.elements = [];
+    flyerState.selectedElementId = null;
+    renderFlyerBuilder();
+}
 
-    try {
-        await fetchJSON(`/api/products/${id}`, { method: 'DELETE' });
-        cart = cart.filter(item => Number(item.id) !== Number(id));
-        await initStore();
-        renderAdminList();
-    } catch (error) {
-        alert(error.message);
-    }
+function flyerAddElement(type) {
+    const id = 'e' + Date.now();
+    flyerState.elements.push(type === 'text'
+        ? { id, type: 'text', value: 'Texto', x: 20, y: 20, w: 180, h: 40 }
+        : { id, type: 'image', value: 'https://via.placeholder.com/200x200', x: 40, y: 80, w: 160, h: 160 });
+    flyerState.selectedElementId = id;
+    renderFlyerBuilder();
+}
+
+function flyerApplyProductToSelected() {
+    const select = document.getElementById('flyer-product-select');
+    const selectedProduct = storeState.products.find(p => Number(p.id) === Number(select.value));
+    const selectedElement = flyerState.elements.find(e => e.id === flyerState.selectedElementId);
+    if (!selectedProduct || !selectedElement) return alert('Selecciona producto y elemento.');
+
+    flyerState.productId = Number(selectedProduct.id);
+    if (selectedElement.type === 'image') selectedElement.value = selectedProduct.img;
+    else selectedElement.value = `${selectedProduct.name} - ${storeState.config.currency}${Number(selectedProduct.price).toLocaleString()}`;
+    renderFlyerBuilder();
+}
+
+function renderFlyerBuilder() {
+    const titleInput = document.getElementById('flyer-title');
+    const productSelect = document.getElementById('flyer-product-select');
+    const canvas = document.getElementById('flyer-canvas');
+    const elementsList = document.getElementById('flyer-elements');
+    if (!canvas || !elementsList) return;
+
+    titleInput.value = flyerState.title;
+    titleInput.oninput = (e) => { flyerState.title = e.target.value; cacheFlyerDraft(); };
+    if (productSelect) productSelect.value = flyerState.productId || '';
+
+    canvas.innerHTML = '';
+    flyerState.elements.forEach(el => {
+        const node = document.createElement(el.type === 'image' ? 'img' : 'div');
+        node.className = `absolute border p-1 bg-white/80 ${flyerState.selectedElementId === el.id ? 'border-baby-pink' : 'border-transparent'}`;
+        node.style.left = `${el.x}px`; node.style.top = `${el.y}px`; node.style.width = `${el.w}px`; node.style.height = `${el.h}px`;
+        if (el.type === 'image') { node.src = el.value; node.style.objectFit = 'cover'; } else { node.textContent = el.value; }
+        node.onclick = () => { flyerState.selectedElementId = el.id; renderFlyerBuilder(); };
+        canvas.appendChild(node);
+    });
+
+    elementsList.innerHTML = '';
+    flyerState.elements.forEach(el => {
+        elementsList.innerHTML += `<div class="p-2 rounded-xl border ${flyerState.selectedElementId === el.id ? 'border-baby-pink' : 'border-baby-blue-light'}"><div class="text-xs mb-1">${el.type.toUpperCase()}</div><input class="w-full p-2 border rounded" value="${el.value}" oninput="flyerUpdateElement('${el.id}', this.value)"></div>`;
+    });
+
+    cacheFlyerDraft();
+}
+
+function flyerUpdateElement(id, value) {
+    const el = flyerState.elements.find(item => item.id === id);
+    if (!el) return;
+    el.value = value;
+    renderFlyerBuilder();
+}
+
+function cacheFlyerDraft() { localStorage.setItem('flyerDraftCache', JSON.stringify(flyerState)); }
+
+async function flyerSave() {
+    if (!flyerState.title.trim()) return alert('Agrega un título.');
+    const payload = { id: flyerState.id, title: flyerState.title, product_id: flyerState.productId, layout: flyerState.elements };
+    const saved = await fetchJSON('/api/flyers', { method: 'POST', body: JSON.stringify(payload) });
+    flyerState.id = Number(saved.id);
+    localStorage.setItem('flyerDraftCache', JSON.stringify(flyerState));
+    await initFlyers();
+    alert('Flyer guardado en base de datos.');
 }
 
 initStore().catch(error => {

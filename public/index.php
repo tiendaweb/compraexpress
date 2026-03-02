@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Controllers\ApiController;
 use App\Repositories\ProductRepository;
+use App\Repositories\FlyerRepository;
 use App\Repositories\SettingRepository;
 use App\Repositories\SlideRepository;
 
@@ -39,7 +40,8 @@ if (str_starts_with($path, '/api/')) {
     $controller = new ApiController(
         new ProductRepository(db()),
         new SlideRepository(db()),
-        new SettingRepository(db())
+        new SettingRepository(db()),
+        new FlyerRepository(db())
     );
 
     if ($method === 'GET' && $path === '/api/bootstrap') {
@@ -69,6 +71,22 @@ if (str_starts_with($path, '/api/')) {
 
     if ($method === 'GET' && $path === '/api/settings') {
         $controller->getSettings();
+        return;
+    }
+
+
+    if ($method === 'GET' && $path === '/api/flyers') {
+        $controller->getFlyers();
+        return;
+    }
+
+    if ($method === 'GET' && preg_match('#^/api/flyers/(\d+)$#', $path, $matches)) {
+        $controller->getFlyer((int) $matches[1]);
+        return;
+    }
+
+    if ($method === 'POST' && $path === '/api/flyers') {
+        $controller->saveFlyer();
         return;
     }
 
@@ -254,12 +272,16 @@ function writeConfigFile(string $configPath, array $db, string $appName): void
             <button onclick="showTab('admin')" id="tab-admin" class="flex-1 py-3 text-center text-gray-500 hover:text-baby-text transition items-center justify-center gap-2 flex">
                 <i class="fa-solid fa-tools"></i> Admin Productos
             </button>
+            <button onclick="showTab('flyers')" id="tab-flyers" class="flex-1 py-3 text-center text-gray-500 hover:text-baby-text transition items-center justify-center gap-2 flex">
+                <i class="fa-solid fa-image"></i> Flyers
+            </button>
         </div>
     </nav>
 </header>
 
 <?php require __DIR__ . '/../views/store.php'; ?>
 <?php require __DIR__ . '/../views/admin.php'; ?>
+<?php require __DIR__ . '/../views/flyers.php'; ?>
 
 <div id="cart-overlay" onclick="toggleCart()" class="fixed inset-0 bg-black/50 z-50 hidden"></div>
 <div id="cart-drawer" class="fixed inset-y-0 right-0 w-full max-w-md bg-baby-cream shadow-2xl z-[60] transform translate-x-full transition-transform duration-300 flex flex-col border-l-4 border-baby-blue">

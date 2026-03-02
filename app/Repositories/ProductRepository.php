@@ -12,9 +12,16 @@ class ProductRepository
     {
     }
 
-    public function all(): array
+    public function all(?string $status = null): array
     {
-        $stmt = $this->pdo->query('SELECT id, name, price, img FROM products ORDER BY id DESC');
+        $sql = 'SELECT id, name, price, img, is_active FROM products';
+
+        if ($status === 'active') {
+            $sql .= ' WHERE is_active = 1';
+        }
+
+        $sql .= ' ORDER BY id DESC';
+        $stmt = $this->pdo->query($sql);
 
         return $stmt->fetchAll();
     }

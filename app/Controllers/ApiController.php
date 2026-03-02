@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Repositories\FlyerRepository;
 use App\Repositories\ProductRepository;
 use App\Repositories\SettingRepository;
 use App\Repositories\SlideRepository;
@@ -14,13 +15,14 @@ class ApiController
         private readonly ProductRepository $products,
         private readonly SlideRepository $slides,
         private readonly SettingRepository $settings,
+        private readonly FlyerRepository $flyers,
     ) {
     }
 
     public function bootstrap(): void
     {
         $this->json([
-            'products' => $this->products->all(),
+            'products' => $this->products->all('active'),
             'slides' => $this->slides->all(),
             'config' => $this->settings->all(),
         ]);
@@ -28,7 +30,8 @@ class ApiController
 
     public function getProducts(): void
     {
-        $this->json($this->products->all());
+        $status = isset($_GET['status']) ? trim((string) $_GET['status']) : null;
+        $this->json($this->products->all($status));
     }
 
     public function createProduct(): void
@@ -72,6 +75,55 @@ class ApiController
     public function getSettings(): void
     {
         $this->json($this->settings->all());
+    }
+
+    public function getFlyers(): void
+    {
+        $this->json($this->flyers->all());
+    }
+
+    public function getFlyer(int $id): void
+    {
+        $flyer = $this->flyers->find($id);
+        if ($flyer === null) {
+            $this->json(['error' => 'Flyer no encontrado.'], 404);
+            return;
+        }
+
+        $this->json($flyer);
+    }
+
+    public function saveFlyer(): void
+    {
+        $data = json_decode((string) file_get_contents('php://input'), true);
+        $id = isset($data['id']) ? (int) $data['id'] : null;
+        $title = trim((string) ($data['title'] ?? ''));
+        $layout = $data['layout'] ?? null;
+        $productId = isset($data['product_id']) && $data['product_id'] !== '' ? (int) $data['product_id'] : null;
+
+        if ($title === '' || !is_array($layout)) {
+            $this->json(['error' => 'Título y layout son obligatorios.'], 422);
+            return;
+        }
+
+        $layoutJson = json_encode($layout, JSON_UNESCAPED_UNICODE);
+        if ($layoutJson === false) {
+            $this->json(['error' => 'Layout inválido.'], 422);
+            return;
+        }
+
+        if ($id !== null && $id > 0) {
+            $flyer = $this->flyers->update($id, $title, $layoutJson, $productId);
+            if ($flyer === null) {
+                $this->json(['error' => 'Flyer no encontrado para actualizar.'], 404);
+                return;
+            }
+
+            $this->json($flyer);
+            return;
+        }
+
+        $this->json($this->flyers->create($title, $layoutJson, $productId), 201);
     }
 
     private function json(array $data, int $status = 200): void
