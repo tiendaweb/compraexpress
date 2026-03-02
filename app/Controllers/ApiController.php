@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Repositories\CategoryRepository;
 use App\Repositories\FlyerRepository;
 use App\Repositories\MediaRepository;
 use App\Repositories\OrderRepository;
@@ -17,6 +18,7 @@ class ApiController
 {
     public function __construct(
         private readonly ProductRepository $products,
+        private readonly CategoryRepository $categories,
         private readonly SlideRepository $slides,
         private readonly SettingRepository $settings,
         private readonly FlyerRepository $flyers,
@@ -33,6 +35,7 @@ class ApiController
                 'products' => $this->products->all('active'),
                 'slides' => $this->slides->all(),
                 'config' => $this->settings->all(),
+                'categories' => $this->categories->all(),
             ]);
         } catch (PDOException $exception) {
             if ($this->isInstallationSchemaError($exception)) {
@@ -124,7 +127,9 @@ class ApiController
             $img = 'https://via.placeholder.com/300x300/f0f0f0/999?text=Sin+Imagen';
         }
 
-        $product = $this->products->create($name, $price, $img);
+        $categoryId = isset($data['category_id']) && $data['category_id'] !== '' ? (int) $data['category_id'] : null;
+
+        $product = $this->products->create($name, $price, $img, $categoryId);
         $this->json($product, 201);
     }
 
@@ -209,6 +214,62 @@ class ApiController
         }
 
         $this->json(['ok' => true]);
+    }
+
+
+    public function updateProduct(int $id): void
+    {
+        $this->enforceRole(['admin', 'gestion']);
+
+        $data = json_decode((string) file_get_contents('php://input'), true);
+        $name = trim((string) ($data['name'] ?? ''));
+        $price = (int) ($data['price'] ?? 0);
+        $img = trim((string) ($data['img'] ?? ''));
+        $isActive = isset($data['is_active']) ? (int) $data['is_active'] : 1;
+        $categoryId = isset($data['category_id']) && $data['category_id'] !== '' ? (int) $data['category_id'] : null;
+
+        if ($name === '' || $price <= 0) {
+            $this->json(['error' => 'Nombre y precio son obligatorios.'], 422);
+            return;
+        }
+
+        if ($img === '') {
+            $img = 'https://via.placeholder.com/300x300/f0f0f0/999?text=Sin+Imagen';
+        }
+
+        if ($isActive !== 0 && $isActive !== 1) {
+            $this->json(['error' => 'Estado de producto inválido.'], 422);
+            return;
+        }
+
+        $product = $this->products->update($id, $name, $price, $img, $categoryId, $isActive === 1);
+        if ($product === null) {
+            $this->json(['error' => 'Producto no encontrado.'], 404);
+            return;
+        }
+
+        $this->json($product);
+    }
+
+    public function getCategories(): void
+    {
+        $this->json($this->categories->all());
+    }
+
+    public function createCategory(): void
+    {
+        $this->enforceRole(['admin', 'gestion']);
+
+        $data = json_decode((string) file_get_contents('php://input'), true);
+        $name = trim((string) ($data['name'] ?? ''));
+
+        if ($name === '') {
+            $this->json(['error' => 'El nombre de la categoría es obligatorio.'], 422);
+            return;
+        }
+
+        $category = $this->categories->findOrCreateByName($name);
+        $this->json($category, 201);
     }
 
     public function getSlides(): void

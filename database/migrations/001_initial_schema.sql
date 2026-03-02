@@ -8,14 +8,24 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS categories (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(120) NOT NULL UNIQUE,
+    slug VARCHAR(140) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS products (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(200) NOT NULL,
     price INT UNSIGNED NOT NULL,
     img VARCHAR(500) NOT NULL,
+    category_id BIGINT UNSIGNED NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_products_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS slides (
@@ -112,11 +122,17 @@ INSERT INTO slides (image, text, sort_order) VALUES
     ('https://via.placeholder.com/1200x400/f8bbd0/546e7a?text=Ofertas+de+la+Semana', 'Ofertas suaves como el cariño', 2)
 ON DUPLICATE KEY UPDATE text = VALUES(text);
 
-INSERT INTO products (name, price, img) VALUES
-    ('Pañales Etapa 2 x40', 29900, 'https://via.placeholder.com/300x300/b3e5fc/546e7a?text=Pa%C3%B1ales'),
-    ('Toallitas Húmedas Aloe x80', 9500, 'https://via.placeholder.com/300x300/f8bbd0/546e7a?text=Toallitas'),
-    ('Crema Antipañalitis 110g', 3400, 'https://via.placeholder.com/300x300/c8e6c9/546e7a?text=%C3%93leo')
-ON DUPLICATE KEY UPDATE price = VALUES(price), img = VALUES(img);
+INSERT INTO categories (name, slug) VALUES
+    ('Pañales', 'panales'),
+    ('Higiene', 'higiene'),
+    ('Cuidado', 'cuidado')
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO products (name, price, img, category_id) VALUES
+    ('Pañales Etapa 2 x40', 29900, 'https://via.placeholder.com/300x300/b3e5fc/546e7a?text=Pa%C3%B1ales', (SELECT id FROM categories WHERE slug = 'panales' LIMIT 1)),
+    ('Toallitas Húmedas Aloe x80', 9500, 'https://via.placeholder.com/300x300/f8bbd0/546e7a?text=Toallitas', (SELECT id FROM categories WHERE slug = 'higiene' LIMIT 1)),
+    ('Crema Antipañalitis 110g', 3400, 'https://via.placeholder.com/300x300/c8e6c9/546e7a?text=%C3%93leo', (SELECT id FROM categories WHERE slug = 'cuidado' LIMIT 1))
+ON DUPLICATE KEY UPDATE price = VALUES(price), img = VALUES(img), category_id = VALUES(category_id);
 
 
 INSERT INTO users (name, email, password_hash, role) VALUES

@@ -14,37 +14,49 @@ class ProductRepository
 
     public function all(?string $status = null): array
     {
-        $sql = 'SELECT id, name, price, img, is_active FROM products';
+        $sql = 'SELECT p.id, p.name, p.price, p.img, p.is_active, p.category_id, c.name AS category_name, c.slug AS category_slug
+            FROM products p
+            LEFT JOIN categories c ON c.id = p.category_id';
 
         if ($status === 'active') {
-            $sql .= ' WHERE is_active = 1';
+            $sql .= ' WHERE p.is_active = 1';
         } elseif ($status === 'archived') {
-            $sql .= ' WHERE is_active = 0';
+            $sql .= ' WHERE p.is_active = 0';
         }
 
-        $sql .= ' ORDER BY id DESC';
+        $sql .= ' ORDER BY p.id DESC';
         $stmt = $this->pdo->query($sql);
 
         return $stmt->fetchAll();
     }
 
-    public function create(string $name, int $price, string $img): array
+    public function create(string $name, int $price, string $img, ?int $categoryId = null): array
     {
-        $stmt = $this->pdo->prepare('INSERT INTO products (name, price, img) VALUES (:name, :price, :img)');
+        $stmt = $this->pdo->prepare('INSERT INTO products (name, price, img, category_id) VALUES (:name, :price, :img, :category_id)');
         $stmt->execute([
             ':name' => $name,
             ':price' => $price,
             ':img' => $img,
+            ':category_id' => $categoryId,
         ]);
 
         $id = (int) $this->pdo->lastInsertId();
+        return $this->findById($id);
+    }
 
-        return [
-            'id' => $id,
-            'name' => $name,
-            'price' => $price,
-            'img' => $img,
-        ];
+    public function update(int $id, string $name, int $price, string $img, ?int $categoryId, bool $isActive): ?array
+    {
+        $stmt = $this->pdo->prepare('UPDATE products SET name = :name, price = :price, img = :img, category_id = :category_id, is_active = :is_active WHERE id = :id');
+        $stmt->execute([
+            ':id' => $id,
+            ':name' => $name,
+            ':price' => $price,
+            ':img' => $img,
+            ':category_id' => $categoryId,
+            ':is_active' => $isActive ? 1 : 0,
+        ]);
+
+        return $this->findById($id);
     }
 
     public function delete(int $id): bool
@@ -67,7 +79,16 @@ class ProductRepository
             return null;
         }
 
-        $findStmt = $this->pdo->prepare('SELECT id, name, price, img, is_active FROM products WHERE id = :id LIMIT 1');
+        return $this->findById($id);
+    }
+
+    private function findById(int $id): ?array
+    {
+        $findStmt = $this->pdo->prepare('SELECT p.id, p.name, p.price, p.img, p.is_active, p.category_id, c.name AS category_name, c.slug AS category_slug
+            FROM products p
+            LEFT JOIN categories c ON c.id = p.category_id
+            WHERE p.id = :id
+            LIMIT 1');
         $findStmt->execute([':id' => $id]);
         $product = $findStmt->fetch();
 

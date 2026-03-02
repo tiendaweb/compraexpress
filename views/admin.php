@@ -9,6 +9,11 @@
             <h3 class="text-xl font-bold text-baby-text"><i class="fa-solid fa-plus-circle text-baby-green"></i> Agregar Nuevo Producto</h3>
             <input type="text" id="admin-prod-name" placeholder="Nombre del producto" class="w-full p-3 border rounded-full bg-baby-cream focus:ring-2 focus:ring-baby-pink outline-none">
             <input type="number" id="admin-prod-price" placeholder="Precio (ej: 12500)" class="w-full p-3 border rounded-full bg-baby-cream focus:ring-2 focus:ring-baby-pink outline-none">
+            <select id="admin-prod-category" class="w-full p-3 border rounded-full bg-baby-cream focus:ring-2 focus:ring-baby-pink outline-none"></select>
+            <div class="flex gap-2">
+                <input type="text" id="admin-new-category-name" placeholder="Nueva categoría" class="flex-1 p-3 border rounded-full bg-baby-cream focus:ring-2 focus:ring-baby-pink outline-none">
+                <button onclick="adminCreateCategory()" class="px-4 py-2 bg-baby-blue rounded-full font-bold">Agregar</button>
+            </div>
             <select id="admin-prod-image-source" class="w-full p-3 border rounded-full bg-baby-cream focus:ring-2 focus:ring-baby-pink outline-none">
                 <option value="url" selected>Usar URL</option>
                 <option value="upload">Subir archivo</option>
@@ -22,6 +27,9 @@
 
         <div class="md:col-span-2 bg-white p-6 rounded-3xl shadow-lg border-2 border-baby-blue-light">
             <h3 class="text-xl font-bold text-baby-text mb-4"><i class="fa-solid fa-list text-baby-blue"></i> Gestión de Productos</h3>
+            <div class="max-w-xs mb-4">
+                <select id="admin-category-filter" class="w-full p-3 border rounded-full bg-baby-cream focus:ring-2 focus:ring-baby-pink outline-none"></select>
+            </div>
             <div class="grid md:grid-cols-2 gap-4" id="products-kanban">
                 <div class="bg-baby-cream rounded-2xl p-4 border border-baby-blue-light">
                     <h4 class="font-bold mb-3">Activos</h4>
